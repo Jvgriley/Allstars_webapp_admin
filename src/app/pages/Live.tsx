@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Play, Volume2, Maximize, Share2, Radio, Plus, Scissors, Send, Megaphone,
   Sparkles, Wifi, Users, ShoppingBag, Heart,
 } from "lucide-react";
 import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar, PageLoading } from "../components/primitives";
+import { ConfirmDialog } from "../components/Modal";
 import type { PageId } from "../nav";
 import type { LiveMatch } from "../../domain/types";
-import { useLiveMatch, useBroadcasts } from "../../services/liveService";
+import { liveService, useLiveMatch, useBroadcasts, useLiveMeta } from "../../services/liveService";
+import { spacesService } from "../../services/spacesService";
 
 function Scoreboard({ liveMatch, compact }: { liveMatch: LiveMatch; compact?: boolean }) {
   return (
@@ -74,7 +77,19 @@ export function LiveCentre({ navigate }: { navigate: (p: PageId, arg?: string) =
 
 export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: liveMatch } = useLiveMatch();
+  const { votedFor } = useLiveMeta();
+  const [pendingVote, setPendingVote] = useState<string | null>(null);
+
   if (!liveMatch) return <PageLoading />;
+
+  const castVote = () => {
+    if (!pendingVote) {
+      toast.error("Pick a player first.");
+      return;
+    }
+    liveService.vote(pendingVote);
+    toast.success(`Vote cast for ${pendingVote}.`);
+  };
 
   return (
     <div className="space-y-6">
@@ -86,9 +101,9 @@ export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => voi
           <Panel eyebrow="Live event timeline" title="Key moments">
             <div className="space-y-2">
               {liveMatch.timeline.map((e, i) => (
-                <button key={i} className="flex w-full items-center gap-3 rounded-xl border border-border p-2.5 text-left hover:bg-muted">
+                <button key={i} onClick={() => toast(`Jumped to ${e.min}.`)} className="flex w-full items-center gap-3 rounded-xl border border-border p-2.5 text-left hover:bg-muted">
                   <span className="w-10 font-display text-lg text-[var(--sa-magenta)]">{e.min}</span>
-                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.type === "GOAL" ? "bg-emerald-50 text-emerald-700" : e.type.includes("CARD") ? "bg-amber-50 text-amber-700" : "bg-muted text-muted-foreground"}`}>{e.type}</span>
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.type === "GOAL" ? "bg-emerald-50 text-emerald-700" : e.type.includes("CARD") ? "bg-amber-50 text-amber-700" : e.type === "HIGHLIGHT" ? "bg-[var(--sa-magenta)]/10 text-[var(--sa-magenta)]" : "bg-muted text-muted-foreground"}`}>{e.type}</span>
                   <span className="flex-1 text-sm text-[var(--sa-ink)]">{e.team && <b>{e.team} · </b>}{e.detail}</span>
                   <span className="text-xs text-muted-foreground">Jump ▸</span>
                 </button>
@@ -101,13 +116,18 @@ export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => voi
           <Panel eyebrow="Live community" title="Player of the match">
             <div className="space-y-2">
               {liveMatch.potm.map((p) => (
-                <div key={p.name}>
-                  <div className="mb-1 flex justify-between text-sm"><span className="font-semibold text-[var(--sa-ink)]">{p.name}</span><span className="text-muted-foreground">{p.pct}%</span></div>
+                <button
+                  key={p.name}
+                  onClick={() => !votedFor && setPendingVote(p.name)}
+                  disabled={!!votedFor}
+                  className={`block w-full rounded-lg p-1.5 text-left transition ${pendingVote === p.name && !votedFor ? "bg-[var(--sa-magenta)]/10" : ""} disabled:cursor-default`}
+                >
+                  <div className="mb-1 flex justify-between text-sm"><span className="font-semibold text-[var(--sa-ink)]">{p.name}{votedFor === p.name && " ✓"}</span><span className="text-muted-foreground">{p.pct}%</span></div>
                   <ProgressBar value={p.pct} />
-                </div>
+                </button>
               ))}
             </div>
-            <Btn size="sm" className="mt-3 w-full">Cast your vote</Btn>
+            <Btn size="sm" className="mt-3 w-full" onClick={castVote} disabled={!!votedFor}>{votedFor ? "Vote cast" : "Cast your vote"}</Btn>
           </Panel>
           <Panel eyebrow="Live commerce" title="Support Riverside">
             {[["Home Shirt", "£39.99"], ["Match Scarf", "£14.99"], ["Membership", "£12 / mo"]].map(([n, p]) => (
@@ -118,7 +138,7 @@ export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => voi
           <Panel eyebrow="Live fundraising" title="New training facility">
             <div className="flex justify-between text-sm"><span className="font-semibold text-[var(--sa-ink)]">£8,420</span><span className="text-muted-foreground">of £12,000</span></div>
             <ProgressBar value={70} className="my-2" />
-            <Btn size="sm" className="w-full"><Heart className="size-4" /> Donate</Btn>
+            <Btn size="sm" className="w-full" onClick={() => toast.success("Thank you — donation recorded.")}><Heart className="size-4" /> Donate</Btn>
           </Panel>
         </div>
       </div>
@@ -127,6 +147,7 @@ export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => voi
 }
 
 const smTabs = ["Live", "Upcoming", "Completed", "Draft"];
+const sourceOptions = ["Veo", "Hudl", "Pixellot", "YouTube", "Custom RTMP", "Manual Upload"];
 
 export function StreamManagement({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: broadcasts } = useBroadcasts();
@@ -139,7 +160,7 @@ export function StreamManagement({ navigate }: { navigate: (p: PageId, arg?: str
     <div className="space-y-6">
       <PageHeader eyebrow="Live" title="Stream Management" subtitle="Plan, connect and publish broadcasts across Veo, Hudl, Pixellot, YouTube and custom RTMP." actions={<Btn onClick={() => setWizard((v) => !v)}><Plus className="size-4" /> Create broadcast</Btn>} />
 
-      {wizard && <CreateBroadcast onClose={() => setWizard(false)} />}
+      {wizard && <CreateBroadcast onClose={() => setWizard(false)} onPublished={() => setTab("Upcoming")} />}
 
       <div className="sa-scroll flex gap-1 overflow-x-auto border-b border-border">
         {smTabs.map((t) => <button key={t} onClick={() => setTab(t)} className={`border-b-2 px-4 py-2.5 text-sm ${tab === t ? "border-[var(--sa-magenta)] font-semibold text-[var(--sa-ink)]" : "border-transparent text-muted-foreground hover:text-[var(--sa-ink)]"}`}>{t}</button>)}
@@ -164,6 +185,7 @@ export function StreamManagement({ navigate }: { navigate: (p: PageId, arg?: str
           </Panel>
         ))}
         {tab === "Draft" && <div className="text-sm text-muted-foreground">No drafts yet.</div>}
+        {tab === "Upcoming" && broadcasts.upcoming.length === 0 && <div className="text-sm text-muted-foreground">No upcoming broadcasts.</div>}
       </div>
     </div>
   );
@@ -171,12 +193,12 @@ export function StreamManagement({ navigate }: { navigate: (p: PageId, arg?: str
 
 const steps = [
   { t: "Select Event", opts: ["Fixture", "Training", "Competition", "Tournament", "Custom Event"] },
-  { t: "Stream Source", opts: ["Veo", "Hudl", "Pixellot", "YouTube", "Custom RTMP", "Manual Upload"] },
+  { t: "Stream Source", opts: sourceOptions },
   { t: "Audience", opts: ["Public", "Allstars Members", "Club Members", "Team Only", "Invite Only", "Paid Access"] },
   { t: "Broadcast Settings", opts: ["Live Chat", "Scoreboard", "Timeline", "Statistics", "AI Intelligence", "Sponsor Overlay", "Recording", "Highlights"] },
 ];
 
-function CreateBroadcast({ onClose }: { onClose: () => void }) {
+function CreateBroadcast({ onClose, onPublished }: { onClose: () => void; onPublished: () => void }) {
   const [step, setStep] = useState(0);
   const [sel, setSel] = useState<Record<number, string[]>>({});
   const toggle = (i: number, opt: string) => setSel((s) => {
@@ -184,6 +206,14 @@ function CreateBroadcast({ onClose }: { onClose: () => void }) {
     if (i === 3) return { ...s, [i]: cur.includes(opt) ? cur.filter((o) => o !== opt) : [...cur, opt] };
     return { ...s, [i]: [opt] };
   });
+  const publish = () => {
+    const eventLabel = (sel[0] ?? ["Custom Event"])[0];
+    const source = (sel[1] ?? ["Veo"])[0];
+    liveService.publishBroadcast({ title: `Riverside — ${eventLabel}`, comp: eventLabel, when: "Scheduled", source });
+    toast.success("Broadcast published.");
+    onPublished();
+    onClose();
+  };
   return (
     <Panel eyebrow={`Step ${step + 1} of 5`} title={step < 4 ? steps[step].t : "Publish / Schedule"}>
       {step < 4 ? (
@@ -201,21 +231,54 @@ function CreateBroadcast({ onClose }: { onClose: () => void }) {
       )}
       <div className="mt-4 flex justify-between">
         <Btn variant="ghost" onClick={() => (step === 0 ? onClose() : setStep((s) => s - 1))}>{step === 0 ? "Cancel" : "Back"}</Btn>
-        {step < 4 ? <Btn onClick={() => setStep((s) => s + 1)}>Continue</Btn> : <Btn onClick={onClose}>Publish</Btn>}
+        {step < 4 ? <Btn onClick={() => setStep((s) => s + 1)}>Continue</Btn> : <Btn onClick={publish}>Publish</Btn>}
       </div>
     </Panel>
   );
 }
 
-const controlActions = ["Update Score", "Add Goal", "Add Card", "Add Substitution", "Create Highlight", "Launch Poll", "Manage Chat", "Insert Sponsor", "Trigger Ad", "Pin AI Story"];
-
 export function ControlRoom({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: liveMatch } = useLiveMatch();
+  const { ended } = useLiveMeta();
+  const [endOpen, setEndOpen] = useState(false);
+
   if (!liveMatch) return <PageLoading />;
+
+  const runAction = (action: string) => {
+    switch (action) {
+      case "Add Goal":
+        liveService.addGoal("home", liveMatch.home.split(" ")[0] + " (mock)");
+        toast.success(`GOAL — ${liveMatch.home}. Score updated.`);
+        break;
+      case "Create Highlight":
+        liveService.addTimelineEvent({ min: liveMatch.clock, type: "HIGHLIGHT", team: liveMatch.home, detail: "Highlight clip created" });
+        toast.success("Highlight created and added to the timeline.");
+        break;
+      default:
+        toast.success(`${action} triggered.`);
+    }
+  };
+
+  const createClip = () => {
+    liveService.addTimelineEvent({ min: "67'", type: "HIGHLIGHT", team: liveMatch.home, detail: "GOAL — J. Williams (clip)" });
+    toast.success("Clip created.");
+  };
+
+  const postToSpaces = () => {
+    spacesService.addPost({ tag: "MATCH HIGHLIGHT", title: `GOAL — J. Williams, 67'`, body: `${liveMatch.home} ${liveMatch.homeScore}–${liveMatch.awayScore} ${liveMatch.away}. A moment from today's match, posted from the Control Room.`, ai: true });
+    toast.success("Posted to Spaces — awaiting approval.");
+    navigate("spaces");
+  };
+
+  const createStory = () => {
+    spacesService.addPost({ tag: "AI STORY", title: "Riverside have scored three unanswered goals", body: `${liveMatch.home} ${liveMatch.homeScore}–${liveMatch.awayScore} ${liveMatch.away} · ${liveMatch.comp}.`, ai: true });
+    toast.success("Story created and posted to Spaces — awaiting approval.");
+    navigate("spaces");
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Live" title="Control Room" subtitle="Drive the broadcast: score, events, highlights, polls, sponsors and AI stories." actions={<Btn variant="dark">End stream</Btn>} />
+      <PageHeader eyebrow="Live" title="Control Room" subtitle="Drive the broadcast: score, events, highlights, polls, sponsors and AI stories." actions={<Btn variant="dark" onClick={() => setEndOpen(true)} disabled={ended}>{ended ? "Stream ended" : "End stream"}</Btn>} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Player liveMatch={liveMatch} />
@@ -225,27 +288,44 @@ export function ControlRoom({ navigate }: { navigate: (p: PageId, arg?: string) 
             <StatCard label="Connection" value="Stable" />
             <StatCard label="Viewers" value={liveMatch.viewers.toLocaleString()} />
             <StatCard label="Peak viewers" value={liveMatch.peak.toLocaleString()} />
-            <StatCard label="Status" value="LIVE" />
+            <StatCard label="Status" value={ended ? "ENDED" : "LIVE"} />
           </div>
         </div>
         <div className="space-y-4">
           <Panel eyebrow="Broadcast controls" title="Actions">
             <div className="grid grid-cols-2 gap-2">
-              {controlActions.map((a) => <Btn key={a} size="sm" variant="outline">{a}</Btn>)}
+              {["Update Score", "Add Goal", "Add Card", "Add Substitution", "Create Highlight", "Launch Poll", "Manage Chat", "Insert Sponsor", "Trigger Ad", "Pin AI Story"].map((a) => (
+                <Btn key={a} size="sm" variant="outline" disabled={ended} onClick={() => runAction(a)}>{a}</Btn>
+              ))}
             </div>
           </Panel>
           <div className="rounded-2xl border border-[var(--sa-magenta)]/30 bg-[var(--sa-magenta)]/5 p-4">
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[var(--sa-magenta)]"><Sparkles className="size-4" /> Potential highlight · 67'</div>
             <div className="mt-1 font-display text-lg text-[var(--sa-ink)]">GOAL — J. Williams</div>
-            <div className="mt-3 flex gap-2"><Btn size="sm"><Scissors className="size-4" /> Create clip</Btn><Btn size="sm" variant="outline" onClick={() => navigate("spaces")}><Send className="size-4" /> Post to Spaces</Btn></div>
+            <div className="mt-3 flex gap-2"><Btn size="sm" onClick={createClip}><Scissors className="size-4" /> Create clip</Btn><Btn size="sm" variant="outline" onClick={postToSpaces}><Send className="size-4" /> Post to Spaces</Btn></div>
           </div>
           <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[var(--sa-violet)]"><Megaphone className="size-4" /> Story opportunity</div>
             <p className="mt-1 text-sm text-[var(--sa-ink)]">"Riverside have scored three unanswered goals."</p>
-            <Btn size="sm" className="mt-3" onClick={() => navigate("spaces")}>Create story</Btn>
+            <Btn size="sm" className="mt-3" onClick={createStory}>Create story</Btn>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={endOpen}
+        onOpenChange={setEndOpen}
+        title="End this stream?"
+        description="Viewers will be disconnected and the broadcast will move to Completed. This cannot be undone from here."
+        confirmLabel="End stream"
+        destructive
+        onConfirm={() => {
+          liveService.endStream();
+          toast.success("Stream ended.");
+          setEndOpen(false);
+          navigate("live-centre");
+        }}
+      />
     </div>
   );
 }

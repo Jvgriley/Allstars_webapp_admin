@@ -2,8 +2,19 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { PageHeader, Panel, InsightCard, StatCard, Btn, PageLoading } from "../components/primitives";
 import { MultiLine } from "../components/Charts";
 import type { PageId } from "../nav";
+import type { InsightKind } from "../../domain/types";
 import { useInsights } from "../../services/insightsService";
 import { useParticipationTrend } from "../../services/metricsService";
+
+// Route each insight to the page its underlying data actually lives on,
+// rather than always "members" — closes the loop from card to data.
+const insightTarget: Record<InsightKind, PageId> = {
+  OPPORTUNITY: "members",
+  TREND: "teams",
+  COMMERCIAL: "finance",
+  PERFORMANCE: "analytics",
+  RISK: "action-centre",
+};
 
 const loop = ["Activity", "Data", "Intelligence", "Story", "Action"];
 
@@ -63,7 +74,7 @@ export function Intelligence({ navigate }: { navigate: (p: PageId) => void }) {
           <MultiLine data={participationTrend} x="week" lines={[{ key: "u16", label: "U16" }, { key: "u18", label: "U18" }, { key: "seniors", label: "Seniors" }]} height={260} />
         </Panel>
         <div className="space-y-4">
-          {insights.map((i) => <InsightCard key={i.id} {...i} onAction={() => navigate("members")} />)}
+          {insights.map((i) => <InsightCard key={i.id} {...i} onAction={() => navigate(insightTarget[i.kind])} />)}
         </div>
       </div>
 

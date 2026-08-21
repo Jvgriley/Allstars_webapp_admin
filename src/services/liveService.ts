@@ -1,8 +1,9 @@
 // Live match centre + broadcast management ("Live" nav section).
-import type { Broadcasts, LiveMatch } from "../domain/types";
+import type { Broadcasts, LiveMatch, MatchEvent, UpcomingBroadcast } from "../domain/types";
 import { useAsyncData } from "./useAsyncData";
+import { createStore, nextId } from "./store";
 
-const liveMatch: LiveMatch = {
+const seedLiveMatch: LiveMatch = {
   home: "Riverside FC",
   away: "United Athletic",
   homeScore: 2,
@@ -32,7 +33,7 @@ const liveMatch: LiveMatch = {
   ],
 };
 
-const broadcasts: Broadcasts = {
+const seedBroadcasts: Broadcasts = {
   live: [{ id: "b1", title: "Riverside U18 vs United Athletic", comp: "U18 Premier", viewers: 1284, source: "Veo" }],
   upcoming: [
     { id: "b2", title: "Women's First vs Falcons", comp: "Regional Cup", when: "Sun 21 Aug · 13:00", source: "Veo" },
@@ -43,15 +44,68 @@ const broadcasts: Broadcasts = {
   ],
 };
 
+type LiveState = { match: LiveMatch; ended: boolean; votedFor: string | null };
+const liveStore = createStore<LiveState>("sa2:live-match", () => ({ match: seedLiveMatch, ended: false, votedFor: null }));
+
+const broadcastsStore = createStore<Broadcasts>("sa2:broadcasts", () => seedBroadcasts);
+
+export type BroadcastInput = Pick<UpcomingBroadcast, "title" | "comp" | "when" | "source">;
+
 export const liveService = {
-  getLiveMatch: (): Promise<LiveMatch> => Promise.resolve(liveMatch),
-  getBroadcasts: (): Promise<Broadcasts> => Promise.resolve(broadcasts),
+  getLiveMatch: (): Promise<LiveMatch> => Promise.resolve(liveStore.getState().match),
+  isEnded: () => liveStore.getState().ended,
+  votedFor: () => liveStore.getState().votedFor,
+  getBroadcasts: (): Promise<Broadcasts> => Promise.resolve(broadcastsStore.getState()),
+
+  setScore(homeScore: number, awayScore: number) {
+    liveStore.setState((s) => ({ ...s, match: { ...s.match, homeScore, awayScore } }));
+  },
+
+  addGoal(team: "home" | "away", scorer: string) {
+    liveStore.setState((s) => {
+      const match = { ...s.match };
+      if (team === "home") match.homeScore += 1;
+      else match.awayScore += 1;
+      const event: MatchEvent = { min: match.clock, type: "GOAL", team: team === "home" ? match.home : match.away, detail: scorer };
+      match.timeline = [event, ...match.timeline];
+      return { ...s, match };
+    });
+  },
+
+  addTimelineEvent(event: MatchEvent) {
+    liveStore.setState((s) => ({ ...s, match: { ...s.match, timeline: [event, ...s.match.timeline] } }));
+  },
+
+  vote(name: string) {
+    liveStore.setState((s) => {
+      if (s.votedFor) return s;
+      const total = s.match.potm.reduce((a, p) => a + p.pct, 0) || 100;
+      const potm = s.match.potm.map((p) => (p.name === name ? { ...p, pct: p.pct + 1 } : p));
+      const newTotal = potm.reduce((a, p) => a + p.pct, 0);
+      const normalised = potm.map((p) => ({ ...p, pct: Math.round((p.pct / newTotal) * total) }));
+      return { ...s, votedFor: name, match: { ...s.match, potm: normalised } };
+    });
+  },
+
+  endStream() {
+    liveStore.setState((s) => ({ ...s, ended: true }));
+  },
+
+  publishBroadcast(input: BroadcastInput) {
+    const broadcast: UpcomingBroadcast = { id: nextId("b"), ...input };
+    broadcastsStore.setState((s) => ({ ...s, upcoming: [broadcast, ...s.upcoming] }));
+    return broadcast;
+  },
 };
 
 export function useLiveMatch() {
-  return useAsyncData(liveService.getLiveMatch);
+  return useAsyncData(liveService.getLiveMatch, [liveStore.useStore()]);
 }
 
 export function useBroadcasts() {
-  return useAsyncData(liveService.getBroadcasts);
+  return useAsyncData(liveService.getBroadcasts, [broadcastsStore.useStore()]);
+}
+
+export function useLiveMeta() {
+  return liveStore.useStore();
 }

@@ -1,28 +1,64 @@
-import { useEffect, useState } from "react";
-import { Sparkles, Heart, Check, Clock, PlayCircle, FileText, Music, BookOpen, Plus } from "lucide-react";
-import { PageHeader, Panel, Btn, Pill, PageLoading } from "../components/primitives";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Sparkles, Heart, Check, Clock, PlayCircle, FileText, Music, BookOpen, Plus, Pencil } from "lucide-react";
+import { PageHeader, Panel, Btn, Pill, PageLoading, TextField, TextAreaField } from "../components/primitives";
+import { Modal } from "../components/Modal";
 import type { SpacePost } from "../../domain/types";
-import { useSpacePosts } from "../../services/spacesService";
+import { spacesService, useSpacePosts } from "../../services/spacesService";
+import { mediaService, useMedia, type MediaItem } from "../../services/mediaService";
 
 const statusTone = (s: SpacePost["status"]) => (s === "Published" ? "green" : s === "Awaiting approval" ? "orange" : "violet");
 
-export function Spaces() {
-  const { data: initialPosts } = useSpacePosts();
-  const [posts, setPosts] = useState<SpacePost[] | undefined>(undefined);
+function PostFormModal({ open, onOpenChange, post }: { open: boolean; onOpenChange: (o: boolean) => void; post?: SpacePost }) {
+  const isEdit = !!post;
+  const [tag, setTag] = useState(post?.tag ?? "");
+  const [title, setTitle] = useState(post?.title ?? "");
+  const [body, setBody] = useState(post?.body ?? "");
 
-  // Local, editable copy of the feed — mirrors the original prototype's
-  // behaviour where "Approve" only ever updated in-memory state.
-  useEffect(() => {
-    if (initialPosts) setPosts(initialPosts);
-  }, [initialPosts]);
+  const save = () => {
+    if (!title.trim() || !body.trim()) {
+      toast.error("Add a title and body before saving.");
+      return;
+    }
+    if (isEdit && post) {
+      spacesService.updatePost(post.id, { tag: tag || post.tag, title, body });
+      toast.success("Post updated.");
+    } else {
+      spacesService.addPost({ tag: tag || "CLUB NEWS", title, body });
+      toast.success("Post created — awaiting approval.");
+    }
+    onOpenChange(false);
+  };
+
+  return (
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? "Edit post" : "New post"}
+      footer={<><Btn variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Btn><Btn onClick={save}>{isEdit ? "Save changes" : "Create post"}</Btn></>}
+    >
+      <TextField label="Tag" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. CLUB NEWS" autoFocus />
+      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <TextAreaField label="Body" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+    </Modal>
+  );
+}
+
+export function Spaces() {
+  const { data: posts } = useSpacePosts();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<SpacePost | undefined>(undefined);
 
   if (!posts) return <PageLoading />;
 
-  const approve = (id: string) => setPosts((p) => (p ?? []).map((x) => (x.id === id ? { ...x, status: "Published" as const } : x)));
+  const approve = (id: string) => {
+    spacesService.approvePost(id);
+    toast.success("Post published.");
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Content" title="Spaces" subtitle="Club, team and community content — including AI-generated stories to review, edit, approve, schedule and publish." actions={<Btn><Plus className="size-4" /> New post</Btn>} />
+      <PageHeader eyebrow="Content" title="Spaces" subtitle="Club, team and community content — including AI-generated stories to review, edit, approve, schedule and publish." actions={<Btn onClick={() => { setEditing(undefined); setFormOpen(true); }}><Plus className="size-4" /> New post</Btn>} />
       <div className="grid gap-4 md:grid-cols-2">
         {posts.map((p) => (
           <Panel key={p.id}>
@@ -36,16 +72,17 @@ export function Spaces() {
             <p className="mt-1 text-sm text-muted-foreground">{p.body}</p>
             <div className="mt-3 flex items-center gap-2">
               {p.status === "Published" ? (
-                <><span className="flex items-center gap-1 text-sm text-muted-foreground"><Heart className="size-4 text-[var(--sa-magenta)]" /> {p.likes}</span><Btn size="sm" variant="ghost">Edit</Btn></>
+                <><span className="flex items-center gap-1 text-sm text-muted-foreground"><Heart className="size-4 text-[var(--sa-magenta)]" /> {p.likes}</span><Btn size="sm" variant="ghost" onClick={() => { setEditing(p); setFormOpen(true); }}><Pencil className="size-3.5" /> Edit</Btn></>
               ) : p.status === "Awaiting approval" ? (
-                <><Btn size="sm" onClick={() => approve(p.id)}><Check className="size-4" /> Approve</Btn><Btn size="sm" variant="outline">Edit</Btn></>
+                <><Btn size="sm" onClick={() => approve(p.id)}><Check className="size-4" /> Approve</Btn><Btn size="sm" variant="outline" onClick={() => { setEditing(p); setFormOpen(true); }}>Edit</Btn></>
               ) : (
-                <span className="flex items-center gap-1 text-sm text-muted-foreground"><Clock className="size-4" /> Scheduled</span>
+                <><span className="flex items-center gap-1 text-sm text-muted-foreground"><Clock className="size-4" /> Scheduled</span><Btn size="sm" variant="ghost" onClick={() => { setEditing(p); setFormOpen(true); }}>Edit</Btn></>
               )}
             </div>
           </Panel>
         ))}
       </div>
+      <PostFormModal open={formOpen} onOpenChange={setFormOpen} post={editing} />
     </div>
   );
 }
@@ -61,21 +98,35 @@ const cats = [
   { name: "Education", icon: BookOpen, count: 15 },
 ];
 
-const media = [
-  { title: "Pressing Under Pressure", type: "Video", dur: "12:40", cat: "Training" },
-  { title: "Set Piece Masterclass", type: "Course", dur: "6 lessons", cat: "Coaching" },
-  { title: "Breathing for Recovery", type: "Audio", dur: "08:15", cat: "Wellbeing" },
-  { title: "U18 vs United — Full Analysis", type: "Video", dur: "24:02", cat: "Analysis" },
-  { title: "Ball Mastery Fundamentals", type: "Playlist", dur: "9 clips", cat: "Skills" },
-  { title: "Safeguarding Essentials", type: "Course", dur: "4 lessons", cat: "Education" },
-];
+function UploadModal({ open, onOpenChange, onUpload }: { open: boolean; onOpenChange: (o: boolean) => void; onUpload: (item: MediaItem) => void }) {
+  const [title, setTitle] = useState("");
+  const [cat, setCat] = useState(cats[0].name);
+  const save = () => {
+    if (!title.trim()) { toast.error("Give the upload a title."); return; }
+    onUpload({ title, type: "Video", dur: "—", cat });
+    toast.success(`"${title}" uploaded.`);
+    onOpenChange(false);
+    setTitle("");
+  };
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title="Upload media" description="Mock upload — no file leaves this browser." footer={<><Btn variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Btn><Btn onClick={save}>Upload</Btn></>}>
+      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+      <div>
+        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</div>
+        <div className="flex flex-wrap gap-1.5">{cats.map((c) => <button key={c.name} onClick={() => setCat(c.name)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${cat === c.name ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{c.name}</button>)}</div>
+      </div>
+    </Modal>
+  );
+}
 
 export function Media() {
   const [cat, setCat] = useState("All");
+  const media = useMedia();
+  const [uploadOpen, setUploadOpen] = useState(false);
   const filtered = cat === "All" ? media : media.filter((m) => m.cat === cat);
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Content" title="Training & Media Library" subtitle="A professional repository of video, audio, documents, courses and playlists with team & club permissions." actions={<Btn><Plus className="size-4" /> Upload</Btn>} />
+      <PageHeader eyebrow="Content" title="Training & Media Library" subtitle="A professional repository of video, audio, documents, courses and playlists with team & club permissions." actions={<Btn onClick={() => setUploadOpen(true)}><Plus className="size-4" /> Upload</Btn>} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cats.map((c) => (
           <button key={c.name} onClick={() => setCat(c.name)} className={`rounded-2xl border p-4 text-left transition ${cat === c.name ? "border-[var(--sa-magenta)] ring-2 ring-[var(--sa-magenta)]/30" : "border-border bg-card hover:bg-muted"}`}>
@@ -94,8 +145,10 @@ export function Media() {
               <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><Pill tone="violet">{m.type}</Pill> {m.dur}</div>
             </div>
           ))}
+          {filtered.length === 0 && <div className="py-6 text-center text-sm text-muted-foreground">No content in this category yet.</div>}
         </div>
       </Panel>
+      <UploadModal open={uploadOpen} onOpenChange={setUploadOpen} onUpload={(item) => mediaService.upload(item)} />
     </div>
   );
 }

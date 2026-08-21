@@ -2,6 +2,7 @@ import { Radio, Calendar, AlertTriangle, ChevronRight, TrendingUp } from "lucide
 import { PageHeader, Panel, StatCard, InsightCard, Btn, Pill, Avatar, PageLoading } from "../components/primitives";
 import { AreaTrend } from "../components/Charts";
 import type { PageId } from "../nav";
+import type { InsightKind } from "../../domain/types";
 import { useKpis } from "../../services/organisationService";
 import { useRevenueTrend } from "../../services/metricsService";
 import { useInsights } from "../../services/insightsService";
@@ -9,6 +10,14 @@ import { useActionCentreTasks } from "../../services/actionCentreService";
 import { useFixtures, useTraining } from "../../services/sportService";
 import { useLiveMatch } from "../../services/liveService";
 import { useRankings } from "../../services/rankingsService";
+
+const insightTarget: Record<InsightKind, PageId> = {
+  OPPORTUNITY: "members",
+  TREND: "teams",
+  COMMERCIAL: "finance",
+  PERFORMANCE: "analytics",
+  RISK: "action-centre",
+};
 
 export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
   const { data: kpis = [] } = useKpis();
@@ -123,7 +132,7 @@ export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {insights.map((i) => (
-              <InsightCard key={i.id} {...i} onAction={() => navigate("intelligence")} />
+              <InsightCard key={i.id} {...i} onAction={() => navigate(insightTarget[i.kind])} />
             ))}
           </div>
         </div>

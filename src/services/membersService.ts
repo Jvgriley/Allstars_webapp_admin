@@ -1,6 +1,7 @@
 // Members, the roster they roll up into as teams/squads, and member-level trend data.
 import type { Member, MemberStatTrendPoint, Team } from "../domain/types";
 import { useAsyncData } from "./useAsyncData";
+import { createStore, nextId } from "./store";
 
 const firstNames = ["Jack", "Tom", "Amelia", "Sophie", "Liam", "Noah", "Olivia", "Emma", "Harry", "Ava", "George", "Isla", "Leo", "Mia", "Freddie", "Grace", "Oscar", "Ruby", "Arthur", "Ella"];
 const lastNames = ["Williams", "Taylor", "Smith", "Brown", "Jones", "Evans", "Roberts", "Walker", "Wright", "Green", "Hall", "Clarke", "Patel", "Khan", "Murphy", "Cooper", "Bailey", "Reed", "Hughes", "Foster"];
@@ -34,7 +35,11 @@ function seeded(i: number): Member {
   };
 }
 
-const members: Member[] = Array.from({ length: 32 }, (_, i) => seeded(i));
+const seedMembers: Member[] = Array.from({ length: 32 }, (_, i) => seeded(i));
+
+type MembersState = { members: Member[]; extraTeams: string[] };
+
+const store = createStore<MembersState>("sa2:members", () => ({ members: seedMembers, extraTeams: [] }));
 
 const memberStatTrend: MemberStatTrendPoint[] = [
   { m: "Mar", hours: 14, sessions: 6 },
@@ -46,27 +51,69 @@ const memberStatTrend: MemberStatTrendPoint[] = [
 ];
 
 function computeTeams(): Team[] {
-  return Array.from(new Set(members.map((m) => m.team))).map((name) => {
+  const { members, extraTeams } = store.getState();
+  const names = new Set([...members.map((m) => m.team), ...extraTeams]);
+  return Array.from(names).map((name) => {
     const roster = members.filter((m) => m.team === name);
-    const attendance = Math.round(roster.reduce((a, m) => a + m.attendance, 0) / roster.length);
+    const attendance = roster.length ? Math.round(roster.reduce((a, m) => a + m.attendance, 0) / roster.length) : 0;
     return { name, count: roster.length, attendance, roster };
   });
 }
 
+export type MemberInput = Pick<Member, "name" | "team" | "role" | "ageGroup" | "position"> & Partial<Member>;
+
+function makeMember(input: MemberInput): Member {
+  return {
+    id: nextId("m"),
+    membership: "Active",
+    availability: "green",
+    attendance: 100,
+    trainingHours: 0,
+    participation: 50,
+    payments: "Paid",
+    lastActive: "Today",
+    status: "Active",
+    allstarsId: `AS-${(10480 + Math.floor(Math.random() * 8000)).toString()}`,
+    ...input,
+  };
+}
+
 export const membersService = {
-  listMembers: (): Promise<Member[]> => Promise.resolve(members),
+  listMembers: (): Promise<Member[]> => Promise.resolve(store.getState().members),
   getMember: (id: string | undefined): Promise<Member | undefined> =>
-    Promise.resolve(members.find((m) => m.id === id) ?? members[0]),
+    Promise.resolve(store.getState().members.find((m) => m.id === id) ?? store.getState().members[0]),
   getMemberStatTrend: (): Promise<MemberStatTrendPoint[]> => Promise.resolve(memberStatTrend),
   listTeams: (): Promise<Team[]> => Promise.resolve(computeTeams()),
+
+  addMember(input: MemberInput): Member {
+    const member = makeMember(input);
+    store.setState((s) => ({ ...s, members: [member, ...s.members] }));
+    return member;
+  },
+
+  updateMember(id: string, patch: Partial<Member>) {
+    store.setState((s) => ({ ...s, members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
+  },
+
+  reassignTeam(memberId: string, team: string) {
+    membersService.updateMember(memberId, { team });
+  },
+
+  removeFromTeam(memberId: string, fallbackTeam = "Unassigned") {
+    membersService.updateMember(memberId, { team: fallbackTeam });
+  },
+
+  createTeam(name: string) {
+    store.setState((s) => (s.extraTeams.includes(name) ? s : { ...s, extraTeams: [...s.extraTeams, name] }));
+  },
 };
 
 export function useMembers() {
-  return useAsyncData(membersService.listMembers);
+  return useAsyncData(membersService.listMembers, [store.useStore()]);
 }
 
 export function useMember(id: string | undefined) {
-  return useAsyncData(() => membersService.getMember(id), [id]);
+  return useAsyncData(() => membersService.getMember(id), [id, store.useStore()]);
 }
 
 export function useMemberStatTrend() {
@@ -74,5 +121,5 @@ export function useMemberStatTrend() {
 }
 
 export function useTeams() {
-  return useAsyncData(membersService.listTeams);
+  return useAsyncData(membersService.listTeams, [store.useStore()]);
 }

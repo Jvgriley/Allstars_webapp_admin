@@ -272,3 +272,53 @@ export type AliceMilliatProfile = {
 };
 
 export type RoleDashboardEntry = { role: string; focus: string; metric: string };
+
+// --- Sprint 2 — Functional Prototype additions -----------------------------
+// These describe state that becomes genuinely interactive/mutable this
+// sprint (still frontend-only, still mock data — see the relevant
+// `src/services/*.ts` module for how each is stored).
+
+export type AvailabilityState = "green" | "orange" | "red";
+
+/** Per-fixture, per-member availability response — distinct from a member's
+ * general `availability` default, since a player's response can differ
+ * fixture to fixture. */
+export type FixtureAvailabilityMap = Record<string, Record<string, AvailabilityState>>;
+
+export type CalendarEventType = "Fixture" | "Training" | "Event" | "Meeting" | "Safeguarding";
+
+export type CalendarEvent = {
+  id: string;
+  day: number; // day of month, 1-31, for the single demo month shown
+  title: string;
+  type: CalendarEventType;
+  time?: string;
+};
+
+export type RetailOrder = {
+  id: string;
+  product: string;
+  buyer: string;
+  qty: number;
+  total: string;
+  status: "Pending" | "Fulfilled";
+  time: string;
+};
+
+export type FinanceTransaction = {
+  id: string;
+  stream: string;
+  member: string;
+  amount: number;
+  status: "Paid" | "Pending" | "Refunded";
+  date: string;
+};
+
+export type CommunicationRecord = {
+  id: string;
+  channel: string;
+  audience: string;
+  subject: string;
+  status: "Sent" | "Scheduled";
+  when: string;
+};

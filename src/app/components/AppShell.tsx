@@ -7,6 +7,7 @@ import { navSections } from "../nav";
 import { pagePath } from "../routing";
 import { useOrganisation } from "../../services/organisationService";
 import { cx, Btn } from "./primitives";
+import { Toaster } from "./ui/sonner";
 
 /**
  * The single application shell: sidebar, top bar, and the "Ask Allstars"
@@ -20,6 +21,7 @@ export function AppLayout() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
+      <Toaster position="top-right" richColors closeButton />
       {/* Sidebar */}
       <aside
         className={cx(
