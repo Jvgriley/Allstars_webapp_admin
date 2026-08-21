@@ -1,5 +1,6 @@
 // Members, the roster they roll up into as teams/squads, and member-level trend data.
 import type { Member, MemberStatTrendPoint, Team } from "../domain/types";
+import type { PositionKey } from "../domain/sportConfigs";
 import { useAsyncData } from "./useAsyncData";
 import { createStore, nextId } from "./store";
 
@@ -9,6 +10,24 @@ const teamNames = ["Seniors", "U18 Premier", "U16 Squad", "U14 Reds", "Women's F
 const roles = ["Player", "Captain", "Coach", "Volunteer", "Parent", "Physio"];
 const positions = ["Forward", "Midfielder", "Defender", "Goalkeeper", "Winger"];
 
+// Sprint 3 — Team Selection: each broad position bucket maps to specific
+// football position keys (see domain/sportConfigs.ts) so seeded members have
+// real, sport-scoped primary/secondary positions to select from. Goalkeepers
+// don't get a secondary outfield position, matching how squads actually work.
+const primaryByBucket: Record<string, PositionKey[]> = {
+  Forward: ["ST"],
+  Midfielder: ["CM", "CDM", "LM", "RM"],
+  Defender: ["CB", "LB", "RB"],
+  Goalkeeper: ["GK"],
+  Winger: ["LW", "RW"],
+};
+const secondaryPoolByBucket: Record<string, PositionKey[]> = {
+  Forward: ["LW", "RW"],
+  Midfielder: ["CDM", "CM", "LW", "RW"],
+  Defender: ["LB", "RB", "CDM"],
+  Winger: ["ST", "RM", "LM"],
+};
+
 function seeded(i: number): Member {
   const name = `${firstNames[i % firstNames.length]} ${lastNames[(i * 3) % lastNames.length]}`;
   const attendance = 55 + ((i * 7) % 45);
@@ -16,6 +35,14 @@ function seeded(i: number): Member {
   const avail = i % 6 === 0 ? "red" : i % 3 === 0 ? "orange" : "green";
   const pay = i % 9 === 0 ? "Overdue" : i % 5 === 0 ? "Due" : "Paid";
   const status = participation < 55 ? "At risk" : attendance < 60 ? "At risk" : "Active";
+  const bucket = positions[i % positions.length];
+  const primaryOptions = primaryByBucket[bucket];
+  const primaryPosition = primaryOptions[i % primaryOptions.length];
+  // Roughly every 4th outfield player is also eligible for a second
+  // position — enough to make multi-position selection genuinely visible
+  // without every player being a wildcard.
+  const secondaryOptions = secondaryPoolByBucket[bucket];
+  const secondaryPositions = bucket !== "Goalkeeper" && i % 4 === 0 ? [secondaryOptions[i % secondaryOptions.length]] : undefined;
   return {
     id: `m${i + 1}`,
     name,
@@ -31,7 +58,10 @@ function seeded(i: number): Member {
     lastActive: i % 4 === 0 ? "Today" : i % 3 === 0 ? "2d ago" : `${(i % 12) + 1}d ago`,
     status: status as Member["status"],
     allstarsId: `AS-${(10480 + i).toString()}`,
-    position: positions[i % positions.length],
+    position: bucket,
+    primaryPosition,
+    secondaryPositions,
+    squadNumber: i + 1,
   };
 }
 

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { MapPin, Clock, Trophy, Plus, Pencil, Check } from "lucide-react";
+import { MapPin, Clock, Trophy, Plus, Pencil, Check, ClipboardList } from "lucide-react";
 import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard, PageLoading, TextField, SelectField } from "../components/primitives";
 import { Modal } from "../components/Modal";
 import type { PageId } from "../nav";
 import type { AvailabilityState, Fixture } from "../../domain/types";
+import { sportConfigs } from "../../domain/sportConfigs";
 import { sportService, useFixtures, useChallenges, useChallengeLeaderboard, useFixtureAvailability } from "../../services/sportService";
 import { useMembers } from "../../services/membersService";
 
@@ -16,6 +17,7 @@ function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOp
   const [time, setTime] = useState(fixture?.time ?? "");
   const [comp, setComp] = useState(fixture?.comp ?? "");
   const [venue, setVenue] = useState(fixture?.venue ?? "Riverside Sports Ground");
+  const [sport, setSport] = useState<Fixture["sport"]>(fixture?.sport ?? "football");
 
   const save = () => {
     if (!away.trim() || !date.trim() || !time.trim()) {
@@ -23,10 +25,10 @@ function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOp
       return;
     }
     if (isEdit && fixture) {
-      sportService.updateFixture(fixture.id, { home, away, date, time, comp, venue });
+      sportService.updateFixture(fixture.id, { home, away, date, time, comp, venue, sport });
       toast.success("Fixture updated.");
     } else {
-      sportService.addFixture({ home, away, date, time, comp, venue });
+      sportService.addFixture({ home, away, date, time, comp, venue, sport });
       toast.success(`Fixture vs ${away} created.`);
     }
     onOpenChange(false);
@@ -47,7 +49,12 @@ function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOp
         <TextField label="Date" value={date} onChange={(e) => setDate(e.target.value)} placeholder="Sat 27 Aug" />
         <TextField label="Time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="14:00" />
       </div>
-      <TextField label="Competition" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="e.g. U18 Premier" />
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="Competition" value={comp} onChange={(e) => setComp(e.target.value)} placeholder="e.g. U18 Premier" />
+        <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value as Fixture["sport"])}>
+          {Object.values(sportConfigs).map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </SelectField>
+      </div>
       <TextField label="Venue" value={venue} onChange={(e) => setVenue(e.target.value)} />
     </Modal>
   );
@@ -71,8 +78,9 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
               <div className="flex items-center gap-2"><MapPin className="size-4" /> {f.venue}</div>
             </div>
             <div className="mt-3 flex gap-2"><Pill tone="green">{f.available} avail</Pill><Pill tone="orange">{f.pending} pending</Pill><Pill tone="red">{f.unavailable} out</Pill></div>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <Btn size="sm" variant="outline" onClick={() => navigate("availability")}>Availability</Btn>
+              <Btn size="sm" variant="outline" onClick={() => navigate("team-sheet", f.id)}><ClipboardList className="size-3.5" /> Team Sheet</Btn>
               <Btn size="sm" variant="outline" onClick={() => navigate("carpool")}>Car pool</Btn>
               <Btn size="sm" onClick={() => navigate("control-room")}>Stream</Btn>
             </div>
@@ -86,7 +94,7 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
 
 const availLabel: Record<AvailabilityState, string> = { green: "Available", orange: "Pending", red: "Unavailable" };
 
-export function Availability() {
+export function Availability({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: fixtures } = useFixtures();
   const { data: members } = useMembers();
   useFixtureAvailability(); // subscribe so per-member responses re-render live
@@ -120,11 +128,31 @@ export function Availability() {
           </>
         }
       />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 lg:grid-cols-4">
         <StatCard label="Available" value={`${counts.green}`} accent />
         <StatCard label="Pending" value={`${counts.orange}`} />
         <StatCard label="Unavailable" value={`${counts.red}`} />
+        <button
+          onClick={() => navigate("team-sheet", f.id)}
+          className="hidden items-center justify-between gap-3 rounded-2xl sa-gradient p-4 text-left text-white shadow-sm transition hover:opacity-90 lg:flex"
+        >
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">Team Sheet</div>
+            <div className="mt-1 font-display text-lg leading-none">View Team Sheet</div>
+          </div>
+          <ClipboardList className="size-6 shrink-0 text-white/90" />
+        </button>
       </div>
+      <button
+        onClick={() => navigate("team-sheet", f.id)}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl sa-gradient p-4 text-left text-white shadow-sm transition hover:opacity-90 lg:hidden"
+      >
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">Team Sheet</div>
+          <div className="mt-1 font-display text-lg leading-none">View Team Sheet</div>
+        </div>
+        <ClipboardList className="size-6 shrink-0 text-white/90" />
+      </button>
       <InsightCard kind="RISK" title="Recurring unavailability" body="Tom has been unavailable for four of the last six away fixtures — worth a conversation before selection." />
       <Panel eyebrow="Squad" title="Availability responses — click a state to update">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

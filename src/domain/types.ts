@@ -5,6 +5,7 @@
 // resolves these types from local mock data (see `src/data.ts`); later,
 // a service can be swapped to fetch the same shapes from the real
 // Sporting Allstars API without any page component needing to change.
+import type { PositionKey, SportKey } from "./sportConfigs";
 
 export type Organisation = {
   name: string;
@@ -61,7 +62,15 @@ export type Member = {
   lastActive: string;
   status: "Active" | "At risk" | "Inactive";
   allstarsId: string;
+  /** Broad, sport-agnostic position bucket (existing since Sprint 1/2) — still used for the People/Members screens. */
   position?: string;
+  /** Sport-scoped primary position key (see domain/sportConfigs.ts) — used by Team Sheet selection. */
+  primaryPosition?: PositionKey;
+  /** Additional sport-scoped positions this player can be selected in. */
+  secondaryPositions?: PositionKey[];
+  squadNumber?: number;
+  /** Mock-only; no seeded member currently has one, so the UI always has to handle the initials-avatar fallback. */
+  photoUrl?: string;
 };
 
 export type Team = {
@@ -91,6 +100,8 @@ export type Fixture = {
   available: number;
   pending: number;
   unavailable: number;
+  /** Which SportConfig (see domain/sportConfigs.ts) this fixture's team sheet uses. Defaults to "football" for fixtures created before Sprint 3. */
+  sport?: SportKey;
 };
 
 export type TrainingSession = {
@@ -321,4 +332,45 @@ export type CommunicationRecord = {
   subject: string;
   status: "Sent" | "Scheduled";
   when: string;
+};
+
+// --- Sprint 3 — Team Selection / Team Sheets --------------------------------
+// See src/domain/sportConfigs.ts for the sport/formation/position config
+// these types are built around, and src/services/teamSheetService.ts for
+// the store-backed mutations and eligibility/insight logic.
+
+export type SelectionStatus = "Draft" | "Published";
+
+/** A player placed into a specific formation slot for a given fixture's team selection. */
+export type SelectedPlayer = {
+  memberId: string;
+  slotId: string;
+  /** True when the manager deliberately selected a player who had marked themselves unavailable. */
+  overrideUnavailable?: boolean;
+};
+
+export type TeamSelection = {
+  fixtureId: string;
+  sport: SportKey;
+  formationId: string;
+  starters: SelectedPlayer[];
+  /** memberIds, ordered — substitutes/reserves, not tied to a formation slot. */
+  bench: string[];
+  status: SelectionStatus;
+  publishedAt?: string;
+  updatedAt?: string;
+};
+
+/** A candidate's eligibility for the position(s) being filled — distinct from being finally selected. See sportConfigs.ts's fallbackEligibility for how this is computed when a member has no sport-specific position set. */
+export type PositionEligibility = {
+  memberId: string;
+  eligiblePositions: PositionKey[];
+};
+
+/** Deterministic mock intelligence about a team selection in progress — reuses the existing Allstars Intelligence InsightKind taxonomy/visual language rather than inventing a parallel one. Structured so a real backend/AI service can replace `teamSheetService.getSelectionInsights` later without the UI changing. */
+export type SelectionInsight = {
+  id: string;
+  kind: InsightKind;
+  title: string;
+  body: string;
 };
