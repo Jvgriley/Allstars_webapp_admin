@@ -1,38 +1,63 @@
 import { useMemo, useState } from "react";
-import { Search, Download, Tag, ChevronRight, Sparkles, ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard, PageLoading } from "../components/primitives";
+import { toast } from "sonner";
+import { Search, Download, Tag, ChevronRight, Sparkles, ArrowLeft, Plus, Pencil, ArrowUpDown, Users } from "lucide-react";
+import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard, PageLoading, TextField } from "../components/primitives";
+import { Modal } from "../components/Modal";
+import { MemberFormModal } from "../components/MemberFormModal";
 import { AreaTrend, Bars } from "../components/Charts";
 import type { PageId } from "../nav";
 import type { Member } from "../../domain/types";
-import { useMembers, useMember, useMemberStatTrend, useTeams } from "../../services/membersService";
+import { membersService, useMembers, useMember, useMemberStatTrend, useTeams } from "../../services/membersService";
 
 const membershipTone = (m: Member["membership"]) => (m === "Active" ? "green" : m === "Pending" ? "orange" : "red");
 const payTone = (p: Member["payments"]) => (p === "Paid" ? "green" : p === "Due" ? "orange" : "red");
 const statusTone = (s: Member["status"]) => (s === "Active" ? "green" : s === "At risk" ? "orange" : "red");
+
+type SortKey = "name" | "attendance" | "participation";
 
 export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: members } = useMembers();
   const [q, setQ] = useState("");
   const [team, setTeam] = useState("All");
   const [selected, setSelected] = useState<string[]>([]);
+  const [sort, setSort] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Member | undefined>(undefined);
 
-  const teams = useMemo(() => ["All", ...Array.from(new Set((members ?? []).map((m) => m.team)))], [members]);
-  const filtered = useMemo(
-    () => (members ?? []).filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase())),
-    [members, q, team],
-  );
+  const teamNames = useMemo(() => ["All", ...Array.from(new Set((members ?? []).map((m) => m.team)))], [members]);
+  const filtered = useMemo(() => {
+    const base = (members ?? []).filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase()));
+    const sorted = [...base].sort((a, b) => {
+      if (sort === "name") return a.name.localeCompare(b.name) * sortDir;
+      return (a[sort] - b[sort]) * sortDir;
+    });
+    return sorted;
+  }, [members, q, team, sort, sortDir]);
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const toggleSort = (key: SortKey) => {
+    if (sort === key) setSortDir((d) => (d === 1 ? -1 : 1));
+    else { setSort(key); setSortDir(1); }
+  };
 
   if (!members) return <PageLoading />;
+
+  const selectedNames = members.filter((m) => selected.includes(m.id)).map((m) => m.name);
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="People"
         title="Members"
-        subtitle={`${members.length} members across ${teams.length - 1} squads. Search, filter, tag, and act in bulk.`}
-        actions={<><Btn variant="outline"><Tag className="size-4" /> Tag</Btn><Btn variant="outline"><Download className="size-4" /> Export</Btn></>}
+        subtitle={`${members.length} members across ${teamNames.length - 1} squads. Search, filter, sort, tag, and act in bulk.`}
+        actions={
+          <>
+            <Btn variant="outline" onClick={() => toast.success(`Tagged ${selected.length || members.length} member(s).`)}><Tag className="size-4" /> Tag</Btn>
+            <Btn variant="outline" onClick={() => toast.success(`Exported ${filtered.length} member(s) to CSV.`)}><Download className="size-4" /> Export</Btn>
+            <Btn onClick={() => { setEditing(undefined); setFormOpen(true); }}><Plus className="size-4" /> Add member</Btn>
+          </>
+        }
       />
 
       <Panel>
@@ -42,8 +67,15 @@ export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => v
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" className="w-full rounded-lg border border-border bg-input-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[var(--sa-magenta)]/40" />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {teams.map((t) => (
+            {teamNames.map((t) => (
               <button key={t} onClick={() => setTeam(t)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${team === t ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{t}</button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {([["name", "Name"], ["attendance", "Attendance"], ["participation", "Participation"]] as [SortKey, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => toggleSort(key)} className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium ${sort === key ? "bg-[var(--sa-violet)] text-white" : "border border-border bg-card hover:bg-muted"}`}>
+                <ArrowUpDown className="size-3" /> {label}{sort === key ? (sortDir === 1 ? " ↑" : " ↓") : ""}
+              </button>
             ))}
           </div>
         </div>
@@ -51,14 +83,15 @@ export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => v
         {selected.length > 0 && (
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-[var(--sa-violet)]/10 px-3 py-2 text-sm text-[var(--sa-violet)]">
             {selected.length} selected
-            <Btn size="sm" variant="outline">Message</Btn>
-            <Btn size="sm" variant="outline">Request availability</Btn>
-            <Btn size="sm" variant="outline">Add tag</Btn>
+            <Btn size="sm" variant="outline" onClick={() => toast.success(`Message queued for ${selectedNames.slice(0, 3).join(", ")}${selected.length > 3 ? "…" : ""}.`)}>Message</Btn>
+            <Btn size="sm" variant="outline" onClick={() => toast.success(`Availability requested from ${selected.length} member(s).`)}>Request availability</Btn>
+            <Btn size="sm" variant="outline" onClick={() => toast.success(`Tag added to ${selected.length} member(s).`)}>Add tag</Btn>
+            <Btn size="sm" variant="ghost" onClick={() => setSelected([])}>Clear</Btn>
           </div>
         )}
 
         <div className="sa-scroll overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[940px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="w-8 py-2.5"></th>
@@ -97,13 +130,23 @@ export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => v
                   <td className="px-3">{m.participation}</td>
                   <td className="px-3"><Pill tone={payTone(m.payments)}>{m.payments}</Pill></td>
                   <td className="px-3"><Pill tone={statusTone(m.status)}>{m.status}</Pill></td>
-                  <td className="px-3"><button onClick={() => navigate("member-profile", m.id)}><ChevronRight className="size-4 text-muted-foreground" /></button></td>
+                  <td className="px-3">
+                    <div className="flex items-center gap-1">
+                      <button title="Edit" onClick={() => { setEditing(m); setFormOpen(true); }} className="rounded p-1 hover:bg-muted"><Pencil className="size-3.5 text-muted-foreground" /></button>
+                      <button onClick={() => navigate("member-profile", m.id)}><ChevronRight className="size-4 text-muted-foreground" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={11} className="py-8 text-center text-sm text-muted-foreground">No members match this search.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </Panel>
+
+      <MemberFormModal open={formOpen} onOpenChange={setFormOpen} member={editing} teams={teamNames.filter((t) => t !== "All")} />
     </div>
   );
 }
@@ -113,9 +156,23 @@ const tabs = ["Overview", "Participation", "Performance", "Activity", "Wellbeing
 export function MemberProfile({ memberId, navigate }: { memberId?: string; navigate: (p: PageId, arg?: string) => void }) {
   const { data: m } = useMember(memberId);
   const { data: memberStatTrend } = useMemberStatTrend();
+  const { data: teams = [] } = useTeams();
   const [tab, setTab] = useState("Overview");
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
   if (!m || !memberStatTrend) return <PageLoading />;
+
+  const sendMessage = () => {
+    if (!messageText.trim()) {
+      toast.error("Write a message before sending.");
+      return;
+    }
+    toast.success(`Message sent to ${m.name}.`);
+    setMessageText("");
+    setMessageOpen(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -134,7 +191,8 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
             </div>
           </div>
           <div className="flex gap-2">
-            <Btn variant="outline">Message</Btn>
+            <Btn variant="outline" onClick={() => setFormOpen(true)}><Pencil className="size-4" /> Edit</Btn>
+            <Btn variant="outline" onClick={() => setMessageOpen(true)}>Message</Btn>
             <Btn onClick={() => navigate("member-stats", m.id)}><Sparkles className="size-4" /> Member Stats</Btn>
           </div>
         </div>
@@ -171,6 +229,17 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
         </div>
         <div className="mt-3 flex gap-2"><Btn size="sm" variant="outline">Highlight reel</Btn><Btn size="sm" variant="ghost" onClick={() => navigate("live-centre")}>View all →</Btn></div>
       </Panel>
+
+      <Modal
+        open={messageOpen}
+        onOpenChange={setMessageOpen}
+        title={`Message ${m.name}`}
+        footer={<><Btn variant="ghost" onClick={() => setMessageOpen(false)}>Cancel</Btn><Btn onClick={sendMessage}>Send</Btn></>}
+      >
+        <TextField label="Message" value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder={`Write a message to ${m.name.split(" ")[0]}…`} autoFocus />
+      </Modal>
+
+      <MemberFormModal open={formOpen} onOpenChange={setFormOpen} member={m} teams={teams.map((t) => t.name)} />
     </div>
   );
 }
@@ -213,12 +282,33 @@ export function MemberStats({ memberId, navigate }: { memberId?: string; navigat
 
 export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: teams } = useTeams();
+  const [drawerTeam, setDrawerTeam] = useState<string | null>(null);
+  const [newTeamOpen, setNewTeamOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
 
   if (!teams) return <PageLoading />;
 
+  const active = teams.find((t) => t.name === drawerTeam);
+
+  const createTeam = () => {
+    if (!newTeamName.trim()) {
+      toast.error("Enter a team name.");
+      return;
+    }
+    membersService.createTeam(newTeamName.trim());
+    toast.success(`${newTeamName.trim()} created.`);
+    setNewTeamName("");
+    setNewTeamOpen(false);
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="People" title="Teams & Squads" subtitle="Every squad rolls up into club analytics and rankings." />
+      <PageHeader
+        eyebrow="People"
+        title="Teams & Squads"
+        subtitle="Every squad rolls up into club analytics and rankings."
+        actions={<Btn onClick={() => setNewTeamOpen(true)}><Plus className="size-4" /> New team</Btn>}
+      />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {teams.map((t) => (
           <Panel key={t.name} title={t.name} eyebrow={`${t.count} members`}>
@@ -228,10 +318,52 @@ export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => voi
               {t.roster.slice(0, 6).map((m) => <Avatar key={m.id} name={m.name} size={30} />)}
               {t.count > 6 && <span className="grid size-[30px] place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">+{t.count - 6}</span>}
             </div>
-            <Btn size="sm" variant="ghost" className="mt-3" onClick={() => navigate("members")}>View roster →</Btn>
+            <div className="mt-3 flex gap-2">
+              <Btn size="sm" variant="outline" onClick={() => setDrawerTeam(t.name)}><Users className="size-3.5" /> Manage roster</Btn>
+              <Btn size="sm" variant="ghost" onClick={() => navigate("members")}>View roster →</Btn>
+            </div>
           </Panel>
         ))}
       </div>
+
+      <Modal
+        open={!!active}
+        onOpenChange={(open) => !open && setDrawerTeam(null)}
+        title={active ? `Manage ${active.name}` : ""}
+        description="Reassign or remove members from this squad. Changes apply immediately across the app."
+      >
+        {active && (
+          <div className="sa-scroll max-h-[50vh] space-y-2 overflow-y-auto">
+            {active.roster.length === 0 && <div className="py-6 text-center text-sm text-muted-foreground">No members on this squad yet.</div>}
+            {active.roster.map((m) => (
+              <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border p-2.5">
+                <Avatar name={m.name} size={32} />
+                <div className="flex-1 text-sm font-semibold text-[var(--sa-ink)]">{m.name}</div>
+                <select
+                  value={m.team}
+                  onChange={(e) => {
+                    membersService.reassignTeam(m.id, e.target.value);
+                    toast.success(`${m.name} moved to ${e.target.value}.`);
+                  }}
+                  className="rounded-lg border border-border bg-input-background px-2 py-1.5 text-xs outline-none"
+                >
+                  {teams.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={newTeamOpen}
+        onOpenChange={setNewTeamOpen}
+        title="New team"
+        description="Creates an empty squad — assign members to it from Manage roster or the member editor."
+        footer={<><Btn variant="ghost" onClick={() => setNewTeamOpen(false)}>Cancel</Btn><Btn onClick={createTeam}>Create team</Btn></>}
+      >
+        <TextField label="Team name" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="e.g. U12 Development" autoFocus />
+      </Modal>
     </div>
   );
 }

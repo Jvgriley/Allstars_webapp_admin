@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -183,6 +183,8 @@ export function Btn({
   onClick,
   className,
   type,
+  disabled,
+  title,
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost" | "outline" | "dark";
@@ -190,8 +192,10 @@ export function Btn({
   onClick?: () => void;
   className?: string;
   type?: "button" | "submit";
+  disabled?: boolean;
+  title?: string;
 }) {
-  const base = "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap";
+  const base = "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50";
   const sizes = size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2 text-sm";
   const variants = {
     primary: "sa-gradient text-white hover:opacity-90 shadow-sm",
@@ -200,9 +204,72 @@ export function Btn({
     ghost: "text-[var(--sa-ink)] hover:bg-muted",
   }[variant];
   return (
-    <button type={type ?? "button"} onClick={onClick} className={cx(base, sizes, variants, className)}>
+    <button type={type ?? "button"} onClick={onClick} disabled={disabled} title={title} className={cx(base, sizes, variants, className)}>
       {children}
     </button>
+  );
+}
+
+/** Standard text input, styled to match the rest of the prototype's forms. */
+export function TextField({
+  label,
+  className,
+  ...props
+}: { label?: string } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="block">
+      {label && <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>}
+      <input
+        {...props}
+        className={cx(
+          "w-full rounded-lg border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--sa-magenta)]/40",
+          className,
+        )}
+      />
+    </label>
+  );
+}
+
+/** Standard textarea, styled to match the rest of the prototype's forms. */
+export function TextAreaField({
+  label,
+  className,
+  ...props
+}: { label?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <label className="block">
+      {label && <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>}
+      <textarea
+        {...props}
+        className={cx(
+          "w-full rounded-lg border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--sa-magenta)]/40",
+          className,
+        )}
+      />
+    </label>
+  );
+}
+
+/** Labeled select, styled to match the rest of the prototype's forms. */
+export function SelectField({
+  label,
+  className,
+  children,
+  ...props
+}: { label?: string } & SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <label className="block">
+      {label && <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>}
+      <select
+        {...props}
+        className={cx(
+          "w-full rounded-lg border border-border bg-input-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--sa-magenta)]/40",
+          className,
+        )}
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 

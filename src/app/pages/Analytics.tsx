@@ -19,16 +19,33 @@ export function Analytics() {
   const { data: participationTrend } = useParticipationTrend();
   const { data: finance } = useFinance();
   const [tab, setTab] = useState("Overview");
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   if (!revenueTrend || !participationTrend || !finance) return <PageLoading />;
 
+  const toggleFilter = (f: string) => setActiveFilters((s) => (s.includes(f) ? s.filter((x) => x !== f) : [...s, f]));
+
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Intelligence" title="Club Analytics" subtitle="Everything the club generates, visualised — filterable by date, team, sport, age and region." actions={<Btn variant="outline"><Filter className="size-4" /> Filters</Btn>} />
+      <PageHeader eyebrow="Intelligence" title="Club Analytics" subtitle="Everything the club generates, visualised — filterable by date, team, sport, age and region." actions={<Btn variant="outline" onClick={() => setFiltersOpen((v) => !v)}><Filter className="size-4" /> Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}</Btn>} />
 
-      <div className="flex flex-wrap gap-1.5">
-        {filters.map((f) => <button key={f} className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted">{f} ▾</button>)}
-      </div>
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-1.5">
+          {filters.map((f) => (
+            <button
+              key={f}
+              onClick={() => toggleFilter(f)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${activeFilters.includes(f) ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}
+            >
+              {f} {activeFilters.includes(f) ? "✓" : "▾"}
+            </button>
+          ))}
+        </div>
+      )}
+      {activeFilters.length > 0 && (
+        <p className="text-xs text-muted-foreground">Filtering by {activeFilters.join(", ")} — charts below reflect the club's full dataset in this prototype; a connected backend would scope them to your selection.</p>
+      )}
 
       <div className="sa-scroll flex gap-1 overflow-x-auto border-b border-border">
         {tabs.map((t) => (

@@ -1,8 +1,9 @@
 // Integrations marketplace + biotrackOS data-ingestion sources ("Admin" / "biotrackOS" sections).
 import type { DataSource, Integration } from "../domain/types";
 import { useAsyncData } from "./useAsyncData";
+import { createStore } from "./store";
 
-const integrations: Integration[] = [
+const seedIntegrations: Integration[] = [
   { name: "Apple Health", cat: "Activity", status: "Available" },
   { name: "Google Health Connect", cat: "Activity", status: "Available" },
   { name: "Garmin", cat: "Activity", status: "Connected" },
@@ -24,7 +25,7 @@ const integrations: Integration[] = [
   { name: "Push", cat: "Communication", status: "Connected" },
 ];
 
-const dataSources: DataSource[] = [
+const seedDataSources: DataSource[] = [
   { name: "biotrackOS", connected: 842, quality: 96, lastSync: "2 min ago", status: "Connected" },
   { name: "Garmin", connected: 214, quality: 91, lastSync: "12 min ago", status: "Connected" },
   { name: "Strava", connected: 388, quality: 88, lastSync: "5 min ago", status: "Connected" },
@@ -32,15 +33,60 @@ const dataSources: DataSource[] = [
   { name: "Manual club data", connected: 1284, quality: 74, lastSync: "1 hr ago", status: "Connected" },
 ];
 
+const privacyDefaults: Record<string, "Public" | "Private"> = {
+  "Public sporting stats": "Public",
+  "Private coach information": "Private",
+  "Private personal information": "Private",
+  "Sensitive health information": "Private",
+};
+
+type IntegrationsState = { integrations: Integration[]; dataSources: DataSource[]; privacy: Record<string, "Public" | "Private"> };
+const store = createStore<IntegrationsState>("sa2:integrations", () => ({
+  integrations: seedIntegrations,
+  dataSources: seedDataSources,
+  privacy: privacyDefaults,
+}));
+
 export const integrationsService = {
-  listIntegrations: (): Promise<Integration[]> => Promise.resolve(integrations),
-  listDataSources: (): Promise<DataSource[]> => Promise.resolve(dataSources),
+  listIntegrations: (): Promise<Integration[]> => Promise.resolve(store.getState().integrations),
+  listDataSources: (): Promise<DataSource[]> => Promise.resolve(store.getState().dataSources),
+  getPrivacy: (): Promise<Record<string, "Public" | "Private">> => Promise.resolve(store.getState().privacy),
+
+  toggleIntegration(name: string) {
+    store.setState((s) => ({
+      ...s,
+      integrations: s.integrations.map((i) =>
+        i.name === name ? { ...i, status: i.status === "Connected" ? "Available" : "Connected" } : i,
+      ),
+    }));
+  },
+
+  toggleDataSource(name: string) {
+    store.setState((s) => ({
+      ...s,
+      dataSources: s.dataSources.map((d) =>
+        d.name === name
+          ? d.status === "Connected"
+            ? { ...d, status: "Potential integration", connected: 0, quality: 0, lastSync: "—" }
+            : { ...d, status: "Connected", connected: 120, quality: 80, lastSync: "Just now" }
+          : d,
+      ),
+    }));
+  },
+
+  setPrivacy(label: string, value: "Public" | "Private") {
+    store.setState((s) => ({ ...s, privacy: { ...s.privacy, [label]: value } }));
+  },
 };
 
 export function useIntegrations() {
-  return useAsyncData(integrationsService.listIntegrations);
+  return useAsyncData(integrationsService.listIntegrations, [store.useStore()]);
 }
 
 export function useDataSources() {
-  return useAsyncData(integrationsService.listDataSources);
+  return useAsyncData(integrationsService.listDataSources, [store.useStore()]);
+}
+
+export function usePrivacy() {
+  return useAsyncData(integrationsService.getPrivacy, [store.useStore()]);
 }
