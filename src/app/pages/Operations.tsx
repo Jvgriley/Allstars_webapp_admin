@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Car, MapPin, Plus, Shield, ShieldAlert, Send } from "lucide-react";
-import { carpool, safeguarding, fixtures, training } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, PageLoading } from "../components/primitives";
+import { useCarpool } from "../../services/carpoolService";
+import { useSafeguardingRecords } from "../../services/safeguardingService";
+import { useFixtures, useTraining } from "../../services/sportService";
 
 const views = ["Month", "Week", "Day", "Agenda"];
 const eventTypes = [
@@ -25,8 +27,13 @@ const monthEvents: Record<number, { label: string; color: string }[]> = {
 };
 
 export function CalendarPage() {
+  const { data: fixtures } = useFixtures();
+  const { data: training } = useTraining();
   const [view, setView] = useState("Month");
   const days = Array.from({ length: 35 }, (_, i) => i - 4); // start offset
+
+  if (!fixtures || !training) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Operations" title="Calendar / Diary" subtitle="Fixtures, training, meetings, events, tournaments, fundraisers and safeguarding renewals in one place." actions={<Btn><Plus className="size-4" /> Create event</Btn>} />
@@ -67,6 +74,9 @@ export function CalendarPage() {
 }
 
 export function CarPool() {
+  const { data: carpool } = useCarpool();
+  if (!carpool) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Operations" title="Car Pooling" subtitle="Secure community transport for youth & community sport. Approximate pickup areas only — never exact home addresses." />
@@ -151,6 +161,9 @@ export function Communications() {
 }
 
 export function Safeguarding() {
+  const { data: safeguarding } = useSafeguardingRecords();
+  if (!safeguarding) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="People" title="Safeguarding & Compliance" subtitle="Role-restricted. DBS status, qualifications, consent, media permissions and incidents." actions={<Btn variant="outline"><ShieldAlert className="size-4" /> Log incident</Btn>} />

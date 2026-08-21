@@ -1,9 +1,17 @@
-import { RefreshCw, Gift, Plus, Handshake } from "lucide-react";
-import { finance, retail, sponsors, rewards, revenueTrend } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar } from "../components/primitives";
-import { AreaTrend, Bars, Donut } from "../components/Charts";
+import { RefreshCw, Plus, Handshake, Gift } from "lucide-react";
+import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar, PageLoading } from "../components/primitives";
+import { AreaTrend, Bars } from "../components/Charts";
+import { useFinance } from "../../services/financeService";
+import { useRetail } from "../../services/retailService";
+import { useSponsors } from "../../services/sponsorshipService";
+import { useRewards } from "../../services/rewardsService";
+import { useRevenueTrend } from "../../services/metricsService";
 
 export function Finance() {
+  const { data: finance } = useFinance();
+  const { data: revenueTrend } = useRevenueTrend();
+  if (!finance || !revenueTrend) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Commercial" title="Finance" subtitle="Every revenue stream, outstanding payments and accounting sync — connected to memberships, retail and sponsorship." actions={<Btn variant="outline"><RefreshCw className="size-4" /> Sync now</Btn>} />
@@ -33,6 +41,9 @@ export function Finance() {
 }
 
 export function Retail() {
+  const { data: retail } = useRetail();
+  if (!retail) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Commercial" title="Retail / Club Store" subtitle="Kits, merch, tickets, courses and memberships — connected to live commerce and member profiles." actions={<Btn><Plus className="size-4" /> Add product</Btn>} />
@@ -65,6 +76,9 @@ export function Retail() {
 }
 
 export function Sponsorship() {
+  const { data: sponsors } = useSponsors();
+  if (!sponsors) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Commercial" title="Sponsorship" subtitle="Manage sponsors, packages, contracts, campaigns and exposure across the whole ecosystem." actions={<Btn><Handshake className="size-4" /> Add sponsor</Btn>} />
@@ -100,6 +114,9 @@ export function Sponsorship() {
 }
 
 export function Rewards() {
+  const { data: rewards } = useRewards();
+  if (!rewards) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Commercial" title="Allstars Rewards" subtitle="Earn rewards & rebates based on verified participation and engagement — funded by Allstars and sponsors." />

@@ -1,8 +1,9 @@
 import { ArrowRight, Sparkles } from "lucide-react";
-import { insights, participationTrend } from "../data";
-import { PageHeader, Panel, InsightCard, StatCard, Btn } from "../components/primitives";
+import { PageHeader, Panel, InsightCard, StatCard, Btn, PageLoading } from "../components/primitives";
 import { MultiLine } from "../components/Charts";
 import type { PageId } from "../nav";
+import { useInsights } from "../../services/insightsService";
+import { useParticipationTrend } from "../../services/metricsService";
 
 const loop = ["Activity", "Data", "Intelligence", "Story", "Action"];
 
@@ -16,6 +17,11 @@ const audiences = [
 ];
 
 export function Intelligence({ navigate }: { navigate: (p: PageId) => void }) {
+  const { data: insights } = useInsights();
+  const { data: participationTrend } = useParticipationTrend();
+
+  if (!insights || !participationTrend) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Allstars Intelligence" title="Today's Intelligence" subtitle="Not a chatbot — intelligence embedded throughout the platform. Activity becomes data, data becomes story, story becomes action." />

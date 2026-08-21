@@ -1,10 +1,27 @@
 import { Radio, Calendar, AlertTriangle, ChevronRight, TrendingUp } from "lucide-react";
-import { kpis, revenueTrend, insights, fixtures, training, actionCentre, liveMatch, rankings } from "../data";
-import { PageHeader, Panel, StatCard, InsightCard, Btn, Pill, Avatar, ProgressBar } from "../components/primitives";
+import { PageHeader, Panel, StatCard, InsightCard, Btn, Pill, Avatar, PageLoading } from "../components/primitives";
 import { AreaTrend } from "../components/Charts";
 import type { PageId } from "../nav";
+import { useKpis } from "../../services/organisationService";
+import { useRevenueTrend } from "../../services/metricsService";
+import { useInsights } from "../../services/insightsService";
+import { useActionCentreTasks } from "../../services/actionCentreService";
+import { useFixtures, useTraining } from "../../services/sportService";
+import { useLiveMatch } from "../../services/liveService";
+import { useRankings } from "../../services/rankingsService";
 
 export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
+  const { data: kpis = [] } = useKpis();
+  const { data: revenueTrend = [] } = useRevenueTrend();
+  const { data: insights = [] } = useInsights();
+  const { data: actionCentre = [] } = useActionCentreTasks();
+  const { data: fixtures = [] } = useFixtures();
+  const { data: training = [] } = useTraining();
+  const { data: liveMatch } = useLiveMatch();
+  const { data: rankings = [] } = useRankings();
+
+  if (!liveMatch) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader

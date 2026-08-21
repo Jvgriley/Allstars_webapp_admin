@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Filter } from "lucide-react";
-import { revenueTrend, participationTrend, rankings, finance } from "../data";
-import { PageHeader, Panel, Btn, StatCard, Avatar, Pill } from "../components/primitives";
+import { PageHeader, Panel, Btn, StatCard, Avatar, PageLoading } from "../components/primitives";
 import { AreaTrend, MultiLine, Bars, Donut } from "../components/Charts";
 import type { PageId } from "../nav";
+import { useRevenueTrend, useParticipationTrend } from "../../services/metricsService";
+import { useFinance } from "../../services/financeService";
+import { useRankings } from "../../services/rankingsService";
 
 const tabs = ["Overview", "Participation", "Performance", "Members", "Finance", "Community", "Challenges", "Retention", "Content", "Live", "Sponsors"];
 const filters = ["Date", "Team", "Sport", "Age", "Gender", "Membership", "Region"];
@@ -13,7 +15,13 @@ const ageDemographics = [
 ];
 
 export function Analytics() {
+  const { data: revenueTrend } = useRevenueTrend();
+  const { data: participationTrend } = useParticipationTrend();
+  const { data: finance } = useFinance();
   const [tab, setTab] = useState("Overview");
+
+  if (!revenueTrend || !participationTrend || !finance) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Intelligence" title="Club Analytics" subtitle="Everything the club generates, visualised — filterable by date, team, sport, age and region." actions={<Btn variant="outline"><Filter className="size-4" /> Filters</Btn>} />
@@ -58,8 +66,12 @@ const rankFilters = ["National", "Region", "County", "Sport", "League", "Age Gro
 const rankBy = ["Overall", "Performance", "Training", "Participation", "Community", "Challenges"];
 
 export function Rankings({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: rankings } = useRankings();
   const [by, setBy] = useState("Overall");
   const [scope, setScope] = useState("National");
+
+  if (!rankings) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Intelligence" title="Allstars Rankings" subtitle="Public community rankings — and the intelligence behind why a club sits where it does." />

@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles, Heart, Check, Clock, PlayCircle, FileText, Music, BookOpen, Plus } from "lucide-react";
-import { spaces, type SpacePost } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, PageLoading } from "../components/primitives";
+import type { SpacePost } from "../../domain/types";
+import { useSpacePosts } from "../../services/spacesService";
 
 const statusTone = (s: SpacePost["status"]) => (s === "Published" ? "green" : s === "Awaiting approval" ? "orange" : "violet");
 
 export function Spaces() {
-  const [posts, setPosts] = useState(spaces);
-  const approve = (id: string) => setPosts((p) => p.map((x) => (x.id === id ? { ...x, status: "Published" as const } : x)));
+  const { data: initialPosts } = useSpacePosts();
+  const [posts, setPosts] = useState<SpacePost[] | undefined>(undefined);
+
+  // Local, editable copy of the feed — mirrors the original prototype's
+  // behaviour where "Approve" only ever updated in-memory state.
+  useEffect(() => {
+    if (initialPosts) setPosts(initialPosts);
+  }, [initialPosts]);
+
+  if (!posts) return <PageLoading />;
+
+  const approve = (id: string) => setPosts((p) => (p ?? []).map((x) => (x.id === id ? { ...x, status: "Published" as const } : x)));
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Content" title="Spaces" subtitle="Club, team and community content — including AI-generated stories to review, edit, approve, schedule and publish." actions={<Btn><Plus className="size-4" /> New post</Btn>} />

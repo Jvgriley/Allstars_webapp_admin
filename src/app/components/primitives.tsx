@@ -5,6 +5,20 @@ export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
 }
 
+/**
+ * Minimal, shared loading placeholder for pages waiting on a service call.
+ * Mock services resolve almost immediately, so in practice this renders
+ * for a single frame — but the seam is real for when a service is backed
+ * by an actual network call.
+ */
+export function PageLoading() {
+  return (
+    <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">
+      Loading…
+    </div>
+  );
+}
+
 export function PageHeader({
   eyebrow,
   title,

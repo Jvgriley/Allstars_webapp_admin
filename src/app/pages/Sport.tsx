@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { MapPin, Clock, Trophy, Users, Plus } from "lucide-react";
-import { fixtures, challenges, challengeLeaderboard, members } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard } from "../components/primitives";
-import { Bars } from "../components/Charts";
+import { MapPin, Clock, Trophy, Plus } from "lucide-react";
+import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard, PageLoading } from "../components/primitives";
 import type { PageId } from "../nav";
+import { useFixtures, useChallenges, useChallengeLeaderboard } from "../../services/sportService";
+import { useMembers } from "../../services/membersService";
 
 export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: fixtures } = useFixtures();
+  if (!fixtures) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Sport" title="Fixtures" subtitle="Every fixture connects to availability, calendar, car pooling and live streaming." actions={<Btn><Plus className="size-4" /> New fixture</Btn>} />
@@ -30,6 +33,10 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
 }
 
 export function Availability() {
+  const { data: fixtures } = useFixtures();
+  const { data: members } = useMembers();
+  if (!fixtures || !members) return <PageLoading />;
+
   const f = fixtures[0];
   const roster = members.slice(0, 18);
   return (
@@ -58,8 +65,13 @@ export function Availability() {
 }
 
 export function Challenges({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
-  const [active, setActive] = useState(challenges[0].id);
-  const c = challenges.find((x) => x.id === active)!;
+  const { data: challenges } = useChallenges();
+  const { data: challengeLeaderboard } = useChallengeLeaderboard();
+  const [active, setActive] = useState<string | undefined>(undefined);
+
+  if (!challenges || !challengeLeaderboard) return <PageLoading />;
+
+  const c = challenges.find((x) => x.id === active) ?? challenges[0];
   const pct = Math.round((c.done / c.goal) * 100);
   return (
     <div className="space-y-6">
@@ -69,7 +81,7 @@ export function Challenges({ navigate }: { navigate: (p: PageId, arg?: string) =
         {challenges.map((ch) => {
           const p = Math.round((ch.done / ch.goal) * 100);
           return (
-            <button key={ch.id} onClick={() => setActive(ch.id)} className={`rounded-2xl border p-4 text-left shadow-sm transition ${active === ch.id ? "border-[var(--sa-magenta)] ring-2 ring-[var(--sa-magenta)]/30" : "border-border hover:bg-muted"}`}>
+            <button key={ch.id} onClick={() => setActive(ch.id)} className={`rounded-2xl border p-4 text-left shadow-sm transition ${c.id === ch.id ? "border-[var(--sa-magenta)] ring-2 ring-[var(--sa-magenta)]/30" : "border-border hover:bg-muted"}`}>
               <div className="flex items-center justify-between"><span className="font-display text-xl text-[var(--sa-ink)]">{ch.name}</span><Trophy className="size-4 text-[var(--sa-magenta)]" /></div>
               <div className="mt-1 text-xs text-muted-foreground">{ch.type} · {ch.participants} participants · {ch.daysLeft} days left</div>
               <div className="mt-3"><ProgressBar value={p} /></div>
