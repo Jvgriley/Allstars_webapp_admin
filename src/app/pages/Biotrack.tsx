@@ -1,7 +1,7 @@
-import { Activity, Lock, Watch } from "lucide-react";
-import { dataSources } from "../data";
-import { PageHeader, Panel, Btn, Pill, StatCard, InsightCard, ProgressBar } from "../components/primitives";
+import { Lock, Watch } from "lucide-react";
+import { PageHeader, Panel, Btn, Pill, StatCard, PageLoading } from "../components/primitives";
 import { AreaTrend } from "../components/Charts";
+import { useDataSources } from "../../services/integrationsService";
 
 const load = [
   { d: "Mon", v: 42 }, { d: "Tue", v: 55 }, { d: "Wed", v: 38 }, { d: "Thu", v: 61 }, { d: "Fri", v: 48 }, { d: "Sat", v: 72 }, { d: "Sun", v: 30 },
@@ -15,6 +15,9 @@ const privacy = [
 ];
 
 export function Biotrack() {
+  const { data: dataSources } = useDataSources();
+  if (!dataSources) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="biotrackOS" title="Data Ingestion Layer" subtitle="Connect wearables, activity platforms and equipment. Health data never appears publicly by default." actions={<Btn variant="outline">Manage permissions</Btn>} />

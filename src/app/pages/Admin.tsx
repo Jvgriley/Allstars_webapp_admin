@@ -1,14 +1,21 @@
 import { useState } from "react";
 import { Building2, ChevronRight } from "lucide-react";
-import { integrations, roleDashboards } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, PageLoading } from "../components/primitives";
+import type { IntegrationStatus } from "../../domain/types";
+import { useIntegrations } from "../../services/integrationsService";
+import { useRoleDashboards } from "../../services/adminService";
 
-const statusTone = (s: string) => (s === "Connected" ? "green" : s === "Available" ? "violet" : "muted");
-const cats = ["All", ...Array.from(new Set(integrations.map((i) => i.cat)))];
+const statusTone = (s: IntegrationStatus) => (s === "Connected" ? "green" : s === "Available" ? "violet" : "muted");
 
 export function Integrations() {
+  const { data: integrations } = useIntegrations();
   const [cat, setCat] = useState("All");
+
+  if (!integrations) return <PageLoading />;
+
+  const cats = ["All", ...Array.from(new Set(integrations.map((i) => i.cat)))];
   const filtered = cat === "All" ? integrations : integrations.filter((i) => i.cat === cat);
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Admin" title="Integrations Marketplace" subtitle="Connect activity, finance, calendar, streaming and communication tools. Nothing is implied as connected unless confirmed." />
@@ -21,7 +28,7 @@ export function Integrations() {
             <span className="grid size-11 place-items-center rounded-xl bg-[var(--sa-ink)] font-display text-white">{i.name[0]}</span>
             <div className="flex-1"><div className="font-semibold text-[var(--sa-ink)]">{i.name}</div><div className="text-xs text-muted-foreground">{i.cat}</div></div>
             <div className="flex flex-col items-end gap-1.5">
-              <Pill tone={statusTone(i.status) as any}>{i.status}</Pill>
+              <Pill tone={statusTone(i.status)}>{i.status}</Pill>
               <Btn size="sm" variant={i.status === "Connected" ? "ghost" : "outline"}>{i.status === "Connected" ? "Manage" : "Connect"}</Btn>
             </div>
           </div>
@@ -34,6 +41,9 @@ export function Integrations() {
 const hierarchy = ["Governing Body", "Region", "League", "Club", "Team", "Member"];
 
 export function RoleDashboards() {
+  const { data: roleDashboards } = useRoleDashboards();
+  if (!roleDashboards) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Admin" title="Role-Based Dashboards" subtitle="The same ecosystem, scoped to each role. Analytics and permissions roll upward through the organisation hierarchy." />

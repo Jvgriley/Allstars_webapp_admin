@@ -1,12 +1,15 @@
 import { Venus, MapPin, Quote, Trophy, ChevronRight, Check } from "lucide-react";
 import amPortrait from "../../imports/AM.jpg";
-import { aliceMilliat as am } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar, PageLoading } from "../components/primitives";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { AreaTrend } from "../components/Charts";
 import type { PageId } from "../nav";
+import { useAliceMilliatProfile } from "../../services/aliceMilliatService";
 
 export function AliceMilliat({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: am } = useAliceMilliatProfile();
+  if (!am) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader

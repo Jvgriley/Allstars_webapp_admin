@@ -1,26 +1,30 @@
 import { useMemo, useState } from "react";
 import { Search, Download, Tag, ChevronRight, Sparkles, ArrowLeft } from "lucide-react";
-import { members, memberStatTrend, type Member } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, StatCard, InsightCard, PageLoading } from "../components/primitives";
 import { AreaTrend, Bars } from "../components/Charts";
 import type { PageId } from "../nav";
+import type { Member } from "../../domain/types";
+import { useMembers, useMember, useMemberStatTrend, useTeams } from "../../services/membersService";
 
 const membershipTone = (m: Member["membership"]) => (m === "Active" ? "green" : m === "Pending" ? "orange" : "red");
 const payTone = (p: Member["payments"]) => (p === "Paid" ? "green" : p === "Due" ? "orange" : "red");
 const statusTone = (s: Member["status"]) => (s === "Active" ? "green" : s === "At risk" ? "orange" : "red");
 
 export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: members } = useMembers();
   const [q, setQ] = useState("");
   const [team, setTeam] = useState("All");
   const [selected, setSelected] = useState<string[]>([]);
 
-  const teams = ["All", ...Array.from(new Set(members.map((m) => m.team)))];
+  const teams = useMemo(() => ["All", ...Array.from(new Set((members ?? []).map((m) => m.team)))], [members]);
   const filtered = useMemo(
-    () => members.filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase())),
-    [q, team],
+    () => (members ?? []).filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase())),
+    [members, q, team],
   );
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+
+  if (!members) return <PageLoading />;
 
   return (
     <div className="space-y-6">
@@ -107,8 +111,11 @@ export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => v
 const tabs = ["Overview", "Participation", "Performance", "Activity", "Wellbeing", "Media", "Payments", "Achievements", "Documents"];
 
 export function MemberProfile({ memberId, navigate }: { memberId?: string; navigate: (p: PageId, arg?: string) => void }) {
-  const m = members.find((x) => x.id === memberId) ?? members[0];
+  const { data: m } = useMember(memberId);
+  const { data: memberStatTrend } = useMemberStatTrend();
   const [tab, setTab] = useState("Overview");
+
+  if (!m || !memberStatTrend) return <PageLoading />;
 
   return (
     <div className="space-y-6">
@@ -169,7 +176,11 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
 }
 
 export function MemberStats({ memberId, navigate }: { memberId?: string; navigate: (p: PageId, arg?: string) => void }) {
-  const m = members.find((x) => x.id === memberId) ?? members[0];
+  const { data: m } = useMember(memberId);
+  const { data: memberStatTrend } = useMemberStatTrend();
+
+  if (!m || !memberStatTrend) return <PageLoading />;
+
   const activity = [
     { k: "Running", v: 42 }, { k: "Cycling", v: 88 }, { k: "Walking", v: 61 }, { k: "Gym", v: 30 }, { k: "Independent", v: 24 },
   ];
@@ -201,11 +212,10 @@ export function MemberStats({ memberId, navigate }: { memberId?: string; navigat
 }
 
 export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
-  const teams = Array.from(new Set(members.map((m) => m.team))).map((t) => {
-    const roster = members.filter((m) => m.team === t);
-    const avg = Math.round(roster.reduce((a, m) => a + m.attendance, 0) / roster.length);
-    return { name: t, count: roster.length, attendance: avg, roster };
-  });
+  const { data: teams } = useTeams();
+
+  if (!teams) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="People" title="Teams & Squads" subtitle="Every squad rolls up into club analytics and rankings." />

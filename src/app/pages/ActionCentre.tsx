@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { AlertTriangle, Filter } from "lucide-react";
-import { actionCentre } from "../data";
-import { PageHeader, Panel, Btn, Pill } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, PageLoading } from "../components/primitives";
+import { useActionCentreTasks } from "../../services/actionCentreService";
 
 export function ActionCentre() {
+  const { data: actionCentre } = useActionCentreTasks();
   const [resolved, setResolved] = useState<string[]>([]);
+
+  if (!actionCentre) return <PageLoading />;
+
   const open = actionCentre.filter((t) => !resolved.includes(t.id));
   const high = open.filter((t) => t.severity === "high").length;
 

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
   Play, Volume2, Maximize, Share2, Radio, Plus, Scissors, Send, Megaphone,
-  Sparkles, Wifi, Users, TrendingUp, ShoppingBag, Heart,
+  Sparkles, Wifi, Users, ShoppingBag, Heart,
 } from "lucide-react";
-import { liveMatch, broadcasts } from "../data";
-import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar } from "../components/primitives";
+import { PageHeader, Panel, Btn, Pill, Avatar, StatCard, InsightCard, ProgressBar, PageLoading } from "../components/primitives";
 import type { PageId } from "../nav";
+import type { LiveMatch } from "../../domain/types";
+import { useLiveMatch, useBroadcasts } from "../../services/liveService";
 
-function Scoreboard({ compact }: { compact?: boolean }) {
+function Scoreboard({ liveMatch, compact }: { liveMatch: LiveMatch; compact?: boolean }) {
   return (
     <div className="flex items-center justify-between rounded-xl bg-[var(--sa-ink)] p-4 text-white">
       <div className="text-center"><Avatar name={liveMatch.home} size={compact ? 32 : 44} /><div className="mt-1 text-sm font-semibold">{liveMatch.home}</div></div>
@@ -20,7 +21,7 @@ function Scoreboard({ compact }: { compact?: boolean }) {
   );
 }
 
-function Player() {
+function Player({ liveMatch }: { liveMatch: LiveMatch }) {
   return (
     <div className="overflow-hidden rounded-2xl bg-black">
       <div className="relative grid aspect-video place-items-center bg-gradient-to-br from-[var(--sa-violet)] to-[var(--sa-ink)]">
@@ -38,14 +39,18 @@ function Player() {
 }
 
 export function LiveCentre({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: liveMatch } = useLiveMatch();
+  const { data: broadcasts } = useBroadcasts();
+  if (!liveMatch || !broadcasts) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Allstars Live" title="Live Centre" subtitle="Not just a video player — a data & content generation engine. Every match feeds intelligence, stories, profiles and rankings." actions={<Btn onClick={() => navigate("stream-management")}><Plus className="size-4" /> Create broadcast</Btn>} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-rose-600"><span className="size-2 animate-pulse rounded-full bg-rose-600" /> Live now · {liveMatch.comp}</div>
-          <Player />
-          <Scoreboard />
+          <Player liveMatch={liveMatch} />
+          <Scoreboard liveMatch={liveMatch} />
           <Btn className="w-full" onClick={() => navigate("match")}><Radio className="size-4" /> Open full match centre</Btn>
         </div>
         <div className="space-y-4">
@@ -68,13 +73,16 @@ export function LiveCentre({ navigate }: { navigate: (p: PageId, arg?: string) =
 }
 
 export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: liveMatch } = useLiveMatch();
+  if (!liveMatch) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Live match centre" title={`${liveMatch.home} vs ${liveMatch.away}`} subtitle={`${liveMatch.comp} · ${liveMatch.venue}`} actions={<Btn variant="outline" onClick={() => navigate("control-room")}>Control room</Btn>} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <Player />
-          <Scoreboard />
+          <Player liveMatch={liveMatch} />
+          <Scoreboard liveMatch={liveMatch} />
           <Panel eyebrow="Live event timeline" title="Key moments">
             <div className="space-y-2">
               {liveMatch.timeline.map((e, i) => (
@@ -121,8 +129,12 @@ export function Match({ navigate }: { navigate: (p: PageId, arg?: string) => voi
 const smTabs = ["Live", "Upcoming", "Completed", "Draft"];
 
 export function StreamManagement({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: broadcasts } = useBroadcasts();
   const [tab, setTab] = useState("Live");
   const [wizard, setWizard] = useState(false);
+
+  if (!broadcasts) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Live" title="Stream Management" subtitle="Plan, connect and publish broadcasts across Veo, Hudl, Pixellot, YouTube and custom RTMP." actions={<Btn onClick={() => setWizard((v) => !v)}><Plus className="size-4" /> Create broadcast</Btn>} />
@@ -198,12 +210,15 @@ function CreateBroadcast({ onClose }: { onClose: () => void }) {
 const controlActions = ["Update Score", "Add Goal", "Add Card", "Add Substitution", "Create Highlight", "Launch Poll", "Manage Chat", "Insert Sponsor", "Trigger Ad", "Pin AI Story"];
 
 export function ControlRoom({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
+  const { data: liveMatch } = useLiveMatch();
+  if (!liveMatch) return <PageLoading />;
+
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Live" title="Control Room" subtitle="Drive the broadcast: score, events, highlights, polls, sponsors and AI stories." actions={<Btn variant="dark">End stream</Btn>} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <Player />
+          <Player liveMatch={liveMatch} />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <StatCard label="Stream health" value="Excellent" accent />
             <StatCard label="Resolution" value="1080p" />
