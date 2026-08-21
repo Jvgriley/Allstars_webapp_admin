@@ -26,6 +26,8 @@ export function pagePath(id: PageId, arg?: string): string {
       return "/availability";
     case "challenges":
       return "/challenges";
+    case "team-sheet":
+      return `/fixtures/${arg ?? ""}/team-sheet`;
     case "intelligence":
       return "/intelligence";
     case "analytics":

@@ -8,7 +8,7 @@ import type { ComponentType } from "react";
 export type PageId =
   | "dashboard" | "action-centre"
   | "members" | "member-profile" | "teams"
-  | "fixtures" | "availability" | "challenges"
+  | "fixtures" | "availability" | "challenges" | "team-sheet"
   | "intelligence" | "member-stats" | "analytics" | "rankings"
   | "calendar" | "carpool" | "communications" | "safeguarding"
   | "biotrack"

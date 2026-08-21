@@ -4,9 +4,10 @@ import { useAsyncData } from "./useAsyncData";
 import { createStore, nextId } from "./store";
 
 const seedFixtures: Fixture[] = [
-  { id: "f1", home: "Riverside U18", away: "United Athletic", date: "Sat 20 Aug", time: "14:00", comp: "U18 Premier", venue: "Riverside Sports Ground", available: 17, pending: 4, unavailable: 5 },
-  { id: "f2", home: "Riverside U14", away: "City FC", date: "Sat 20 Aug", time: "10:30", comp: "Youth League", venue: "City Park", available: 12, pending: 6, unavailable: 3 },
-  { id: "f3", home: "Women's First", away: "Falcons", date: "Sun 21 Aug", time: "13:00", comp: "Regional Cup", venue: "Riverside Sports Ground", available: 15, pending: 2, unavailable: 4 },
+  { id: "f1", home: "Riverside U18", away: "United Athletic", date: "Sat 20 Aug", time: "14:00", comp: "U18 Premier", venue: "Riverside Sports Ground", available: 17, pending: 4, unavailable: 5, sport: "football" },
+  { id: "f2", home: "Riverside U14", away: "City FC", date: "Sat 20 Aug", time: "10:30", comp: "Youth League", venue: "City Park", available: 12, pending: 6, unavailable: 3, sport: "football" },
+  { id: "f3", home: "Women's First", away: "Falcons", date: "Sun 21 Aug", time: "13:00", comp: "Regional Cup", venue: "Riverside Sports Ground", available: 15, pending: 2, unavailable: 4, sport: "football" },
+  { id: "f4", home: "Riverside RFC", away: "Ironbridge Vale", date: "Sun 21 Aug", time: "15:00", comp: "Regional Merit League", venue: "Riverside Sports Ground", available: 19, pending: 5, unavailable: 3, sport: "rugby" },
 ];
 
 const training: TrainingSession[] = [
@@ -45,7 +46,7 @@ const challengesStore = createStore<ChallengesState>("sa2:sport-challenges", () 
 
 const availabilityStore = createStore<FixtureAvailabilityMap>("sa2:sport-availability", () => ({}));
 
-export type FixtureInput = Pick<Fixture, "home" | "away" | "date" | "time" | "comp" | "venue">;
+export type FixtureInput = Pick<Fixture, "home" | "away" | "date" | "time" | "comp" | "venue"> & { sport?: Fixture["sport"] };
 export type ChallengeInput = Pick<Challenge, "name" | "type" | "goal" | "unit"> & { sponsor?: string | null };
 
 export const sportService = {
@@ -59,7 +60,7 @@ export const sportService = {
   hasJoined: (challengeId: string) => !!challengesStore.getState().joined[challengeId],
 
   addFixture(input: FixtureInput): Fixture {
-    const fixture: Fixture = { id: nextId("f"), available: 0, pending: 0, unavailable: 0, ...input };
+    const fixture: Fixture = { id: nextId("f"), available: 0, pending: 0, unavailable: 0, sport: "football", ...input };
     fixturesStore.setState((s) => ({ fixtures: [fixture, ...s.fixtures] }));
     return fixture;
   },
