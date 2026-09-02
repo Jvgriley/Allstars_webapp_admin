@@ -61,6 +61,12 @@ export const teamSheetService = {
   },
 
   isEligibleForSlot(member: Member, config: SportConfig, positionKey: PositionKey): boolean {
+    // Sprint 4 — role-based sports (cricket) use one generic "XI" position
+    // on every slot (see sportConfigs.ts's cricketPlayingXI module comment):
+    // batting-order position isn't gated by role, so anyone in the roster
+    // is eligible for any slot. Formation sports are unaffected — none of
+    // them define a position keyed "XI".
+    if (positionKey === "XI") return true;
     return teamSheetService.getEligiblePositions(member, config).includes(positionKey);
   },
 
@@ -118,6 +124,43 @@ export const teamSheetService = {
     });
   },
 
+  /**
+   * Sprint 4 — swap the occupants of two slots (or move a single occupant
+   * into an empty slot). Generic, not cricket-specific: this is how the
+   * cricket batting order gets reordered (see CricketXI.tsx's up/down
+   * controls, swapping a starter with the adjacent bat-N slot), but it
+   * works identically for any formation sport if a future UI wants it.
+   */
+  swapSlots(fixtureId: string, config: SportConfig, slotIdA: string, slotIdB: string) {
+    store.setState((s) => {
+      const current = s[fixtureId] ?? freshSelection(fixtureId, config);
+      const a = current.starters.find((st) => st.slotId === slotIdA);
+      const b = current.starters.find((st) => st.slotId === slotIdB);
+      if (!a && !b) return s;
+      const rest = current.starters.filter((st) => st.slotId !== slotIdA && st.slotId !== slotIdB);
+      const next = [...rest];
+      if (a) next.push({ ...a, slotId: slotIdB });
+      if (b) next.push({ ...b, slotId: slotIdA });
+      return { ...s, [fixtureId]: { ...current, starters: next, updatedAt: new Date().toISOString() } };
+    });
+  },
+
+  /** Gated by SportConfig.supportsCaptain in the UI — the service itself doesn't enforce it, matching how eligibility is "information, not a rule" elsewhere in this file. Pass undefined to clear. */
+  setCaptain(fixtureId: string, config: SportConfig, memberId: string | undefined) {
+    store.setState((s) => {
+      const current = s[fixtureId] ?? freshSelection(fixtureId, config);
+      return { ...s, [fixtureId]: { ...current, captainId: memberId, updatedAt: new Date().toISOString() } };
+    });
+  },
+
+  /** Gated by SportConfig.supportsViceCaptain in the UI (Cricket today). Pass undefined to clear. */
+  setViceCaptain(fixtureId: string, config: SportConfig, memberId: string | undefined) {
+    store.setState((s) => {
+      const current = s[fixtureId] ?? freshSelection(fixtureId, config);
+      return { ...s, [fixtureId]: { ...current, viceCaptainId: memberId, updatedAt: new Date().toISOString() } };
+    });
+  },
+
   resetSelection(fixtureId: string, config: SportConfig) {
     store.setState((s) => ({ ...s, [fixtureId]: freshSelection(fixtureId, config) }));
   },
@@ -157,7 +200,13 @@ export const teamSheetService = {
     });
 
     for (const slot of unfilled.slice(0, 3)) {
-      const label = config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
+      // Sprint 4 — role-based sports share one generic slot position ("XI"
+      // — see sportConfigs.ts), so "Playing XI remains unfilled" would
+      // repeat uselessly for every empty batting slot; a batting-order
+      // number reads correctly instead. Formation sports are unchanged.
+      const label = config.selectionMode === "role"
+        ? `Batting position ${formation.slots.findIndex((s) => s.slotId === slot.slotId) + 1}`
+        : config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
       insights.push({ id: `unfilled-${slot.slotId}`, kind: "RISK", title: "Selection risk", body: `${label} remains unfilled.` });
     }
     if (unfilled.length > 3) {
@@ -192,6 +241,34 @@ export const teamSheetService = {
         insights.push({ id: `coverage-${m.id}`, kind: "TREND", title: "Coverage", body: `${m.name} can cover both ${labels[0]} and ${labels[1]}.` });
       }
       if (coverageSeen.size >= 2) break;
+    }
+
+    // Sprint 4 — cricket-specific insight, deterministic/mock like every
+    // other insight in this function. Demonstrates that Allstars
+    // Intelligence can reason about role-based squads, not just formations.
+    if (config.selectionMode === "role" && config.key === "cricket") {
+      const starterIds = new Set(selection.starters.map((st) => st.memberId));
+      const bowlingOptions = roster.filter((m) => {
+        if (!starterIds.has(m.id)) return false;
+        const roles = [m.primaryPosition, ...(m.secondaryPositions ?? [])];
+        return roles.includes("BOWL") || roles.includes("AR");
+      }).length;
+      if (selection.starters.length > 0) {
+        insights.push({
+          id: "cricket-bowling-options",
+          kind: bowlingOptions <= 4 ? "RISK" : "PERFORMANCE",
+          title: "Bowling options",
+          body: `Current XI contains ${bowlingOptions} recognised bowling option${bowlingOptions === 1 ? "" : "s"} (bowlers and all-rounders).`,
+        });
+      }
+      const hasKeeper = selection.starters.some((st) => {
+        const m = roster.find((r) => r.id === st.memberId);
+        const roles = m ? [m.primaryPosition, ...(m.secondaryPositions ?? [])] : [];
+        return roles.includes("WK");
+      });
+      if (selection.starters.length > 0 && !hasKeeper) {
+        insights.push({ id: "cricket-no-keeper", kind: "RISK", title: "Wicketkeeper", body: "No recognised wicketkeeper is currently in the XI." });
+      }
     }
 
     return insights;

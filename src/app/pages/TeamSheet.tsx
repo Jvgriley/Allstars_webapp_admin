@@ -13,11 +13,13 @@ import { PageHeader, Panel, Btn, Pill, InsightCard, PageLoading, SelectField } f
 import { ConfirmDialog } from "../components/Modal";
 import { Pitch, SlotAnchor } from "../components/teamsheet/Pitch";
 import { SlotChip, BenchRow } from "../components/teamsheet/PlayerChip";
+import { CricketXI } from "../components/teamsheet/CricketXI";
 import { PlayerPickerModal } from "../components/teamsheet/PlayerPickerModal";
 import { buildTeamSheetSvg, downloadSvg } from "../components/teamsheet/exportSvg";
 import type { PageId } from "../nav";
 import { sportConfigs } from "../../domain/sportConfigs";
 import { sportService, useFixtures } from "../../services/sportService";
+import { rosterSportFor } from "../../services/sportContext";
 import { useMembers } from "../../services/membersService";
 import { teamSheetService, useTeamSheetsStore } from "../../services/teamSheetService";
 import { spacesService } from "../../services/spacesService";
@@ -48,13 +50,36 @@ export function TeamSheetPage({ fixtureId, navigate }: { fixtureId?: string; nav
   const config = sportConfigs[sport];
   const selection = teamSheetService.getSelection(fixture.id, config);
   const formation = config.formations.find((f) => f.id === selection.formationId) ?? config.formations[0];
-  const roster = members.slice(0, 18); // same convention as the Availability screen
+  // Sprint 4 — scope the candidate pool to members registered for this
+  // fixture's sport (see membersService.ts's per-sport seed data), same
+  // convention the Availability screen uses. Sprint 3 behaviour for
+  // football fixtures is unchanged: every seeded football member has
+  // sport === "football" via the (m.sport ?? "football") fallback.
+  const roster = members.filter((m) => (m.sport ?? "football") === rosterSportFor(sport)).slice(0, 18);
   const memberById = (id: string) => members.find((m) => m.id === id);
   const getAvailability = (memberId: string) => sportService.getAvailability(fixture.id, memberId, memberById(memberId)?.availability ?? "green");
 
   const isBuilder = selection.status === "Draft";
   const insights = teamSheetService.getSelectionInsights(config, selection, roster, getAvailability);
   const activeSlot = picker?.mode === "slot" ? formation.slots.find((s) => s.slotId === picker.slotId) : undefined;
+  // Sprint 4 — the one genuine fork in this page: role-based sports
+  // (cricket today) have no surface to place a marker on, so they render
+  // via <CricketXI/> instead of <Pitch/>+<SlotChip/>. Every mutation below
+  // (handlePick, removeFromSlot, publish, share, …) is shared unchanged.
+  const isRoleMode = config.selectionMode === "role";
+
+  const moveInOrder = (slotId: string, direction: -1 | 1) => {
+    const idx = formation.slots.findIndex((s) => s.slotId === slotId);
+    const target = formation.slots[idx + direction];
+    if (!target) return;
+    teamSheetService.swapSlots(fixture.id, config, slotId, target.slotId);
+  };
+  const toggleCaptain = (memberId: string) => {
+    teamSheetService.setCaptain(fixture.id, config, selection.captainId === memberId ? undefined : memberId);
+  };
+  const toggleViceCaptain = (memberId: string) => {
+    teamSheetService.setViceCaptain(fixture.id, config, selection.viceCaptainId === memberId ? undefined : memberId);
+  };
 
   const handlePick = (memberId: string, opts?: { override?: boolean }) => {
     const name = memberById(memberId)?.name ?? "Player";
@@ -170,7 +195,7 @@ export function TeamSheetPage({ fixtureId, navigate }: { fixtureId?: string; nav
             <div className="space-y-4 lg:col-span-2">
               <Panel
                 eyebrow={`${config.label} · Team Builder`}
-                title="Tap a position to select a player"
+                title={isRoleMode ? `Tap a batting position to select a player` : "Tap a position to select a player"}
                 action={
                   <div className="flex flex-wrap items-center gap-2">
                     {config.formations.length > 1 && (
@@ -182,43 +207,68 @@ export function TeamSheetPage({ fixtureId, navigate }: { fixtureId?: string; nav
                   </div>
                 }
               >
-                <Pitch sport={sport}>
-                  {formation.slots.map((slot) => {
-                    const started = selection.starters.find((st) => st.slotId === slot.slotId);
-                    const member = started ? memberById(started.memberId) : undefined;
-                    const warn = !started
-                      ? undefined
-                      : started.overrideUnavailable
-                        ? "unavailable"
-                        : member && !teamSheetService.isEligibleForSlot(member, config, slot.position)
-                          ? "out-of-position"
-                          : undefined;
-                    return (
-                      <SlotAnchor key={slot.slotId} x={slot.x} y={slot.y}>
-                        <SlotChip slot={slot} config={config} member={member} warn={warn} onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })} />
-                      </SlotAnchor>
-                    );
-                  })}
-                </Pitch>
+                {isRoleMode ? (
+                  <CricketXI
+                    config={config}
+                    formation={formation}
+                    selection={selection}
+                    memberById={memberById}
+                    onSlotClick={(slotId) => setPicker({ mode: "slot", slotId })}
+                    onRemove={removeFromSlot}
+                    onMoveUp={(slotId) => moveInOrder(slotId, -1)}
+                    onMoveDown={(slotId) => moveInOrder(slotId, 1)}
+                    onToggleCaptain={toggleCaptain}
+                    onToggleViceCaptain={toggleViceCaptain}
+                  />
+                ) : (
+                  <Pitch surface={config.surface}>
+                    {formation.slots.map((slot) => {
+                      const started = selection.starters.find((st) => st.slotId === slot.slotId);
+                      const member = started ? memberById(started.memberId) : undefined;
+                      const warn = !started
+                        ? undefined
+                        : started.overrideUnavailable
+                          ? "unavailable"
+                          : member && !teamSheetService.isEligibleForSlot(member, config, slot.position)
+                            ? "out-of-position"
+                            : undefined;
+                      return (
+                        <SlotAnchor key={slot.slotId} x={slot.x ?? 50} y={slot.y ?? 50}>
+                          <SlotChip slot={slot} config={config} member={member} warn={warn} onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })} />
+                        </SlotAnchor>
+                      );
+                    })}
+                  </Pitch>
+                )}
               </Panel>
 
-              <Panel eyebrow="Squad" title={`Starting ${formation.slots.length} — full list`}>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {formation.slots.map((slot) => {
-                    const started = selection.starters.find((st) => st.slotId === slot.slotId);
-                    const member = started ? memberById(started.memberId) : undefined;
-                    const label = config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
-                    return member ? (
-                      <BenchRow key={slot.slotId} member={member} positionLabel={label} onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })} onRemove={() => removeFromSlot(slot.slotId)} />
-                    ) : (
-                      <button key={slot.slotId} onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })} className="flex items-center gap-2.5 rounded-xl border border-dashed border-border p-2 text-left text-sm text-muted-foreground hover:bg-muted">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-xs">+</span>
-                        {label} — unfilled
-                      </button>
-                    );
-                  })}
-                </div>
-              </Panel>
+              {!isRoleMode && (
+                <Panel eyebrow="Squad" title={`${config.startersLabel} — full list`}>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {formation.slots.map((slot) => {
+                      const started = selection.starters.find((st) => st.slotId === slot.slotId);
+                      const member = started ? memberById(started.memberId) : undefined;
+                      const label = config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
+                      return member ? (
+                        <BenchRow
+                          key={slot.slotId}
+                          member={member}
+                          positionLabel={label}
+                          onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })}
+                          onRemove={() => removeFromSlot(slot.slotId)}
+                          isCaptain={config.supportsCaptain && selection.captainId === member.id}
+                          onToggleCaptain={config.supportsCaptain ? () => toggleCaptain(member.id) : undefined}
+                        />
+                      ) : (
+                        <button key={slot.slotId} onClick={() => setPicker({ mode: "slot", slotId: slot.slotId })} className="flex items-center gap-2.5 rounded-xl border border-dashed border-border p-2 text-left text-sm text-muted-foreground hover:bg-muted">
+                          <span className="grid size-8 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-xs">+</span>
+                          {label} — unfilled
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Panel>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -255,25 +305,33 @@ export function TeamSheetPage({ fixtureId, navigate }: { fixtureId?: string; nav
           </div>
 
           <Panel eyebrow={`${config.label} · ${formation.label}`} title="Published Team Sheet">
-            <Pitch sport={sport}>
-              {formation.slots.map((slot) => {
-                const started = selection.starters.find((st) => st.slotId === slot.slotId);
-                const member = started ? memberById(started.memberId) : undefined;
-                return (
-                  <SlotAnchor key={slot.slotId} x={slot.x} y={slot.y}>
-                    <SlotChip slot={slot} config={config} member={member} onClick={() => {}} readOnly />
-                  </SlotAnchor>
-                );
-              })}
-            </Pitch>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              {formation.slots.map((slot) => {
-                const started = selection.starters.find((st) => st.slotId === slot.slotId);
-                const member = started ? memberById(started.memberId) : undefined;
-                const label = config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
-                return member ? <BenchRow key={slot.slotId} member={member} positionLabel={label} readOnly /> : null;
-              })}
-            </div>
+            {isRoleMode ? (
+              <CricketXI config={config} formation={formation} selection={selection} memberById={memberById} readOnly />
+            ) : (
+              <>
+                <Pitch surface={config.surface}>
+                  {formation.slots.map((slot) => {
+                    const started = selection.starters.find((st) => st.slotId === slot.slotId);
+                    const member = started ? memberById(started.memberId) : undefined;
+                    return (
+                      <SlotAnchor key={slot.slotId} x={slot.x ?? 50} y={slot.y ?? 50}>
+                        <SlotChip slot={slot} config={config} member={member} onClick={() => {}} readOnly />
+                      </SlotAnchor>
+                    );
+                  })}
+                </Pitch>
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {formation.slots.map((slot) => {
+                    const started = selection.starters.find((st) => st.slotId === slot.slotId);
+                    const member = started ? memberById(started.memberId) : undefined;
+                    const label = config.positions.find((p) => p.key === slot.position)?.label ?? slot.position;
+                    return member ? (
+                      <BenchRow key={slot.slotId} member={member} positionLabel={label} readOnly isCaptain={config.supportsCaptain && selection.captainId === member.id} />
+                    ) : null;
+                  })}
+                </div>
+              </>
+            )}
           </Panel>
 
           <Panel eyebrow={config.benchLabel} title={config.benchLabel}>

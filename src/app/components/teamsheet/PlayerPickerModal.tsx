@@ -75,7 +75,7 @@ export function PlayerPickerModal({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-[var(--sa-ink)]">{member.name}</div>
             <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              {member.position}
+              {config.positions.find((p) => p.key === member.primaryPosition)?.label ?? member.position}
               {occupiedSlotId && occupiedLabel && <span className="text-[var(--sa-magenta)]"> · currently {config.positions.find((p) => p.key === occupiedLabel.position)?.shortLabel}</span>}
               {!occupiedSlotId && currentOnBench(member.id) && <span className="text-[var(--sa-violet)]"> · currently on bench</span>}
             </div>
