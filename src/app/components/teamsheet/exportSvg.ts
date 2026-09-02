@@ -116,6 +116,55 @@ function buildRoleSheetSvg(opts: {
 </svg>`;
 }
 
+// Sprint 5 — "Download Graphic" for an individual SportEvent's entry list.
+// Relay/crew events don't need a new export function at all: they reuse
+// buildTeamSheetSvg above unchanged (a synthetic SportConfig + a
+// TeamSelection-shaped selection is all it ever needed — see
+// sportConfigs.ts's buildEventSelectionConfig). This is only for
+// "individual" events, which have no TeamSelection to reuse.
+export function buildEventEntrySvg(opts: {
+  eventLabel: string;
+  headline: string;
+  subline: string;
+  entries: { name: string; squadNumber?: number }[];
+}): string {
+  const { eventLabel, headline, subline, entries } = opts;
+  const W = 800;
+  const rowH = 54;
+  const bodyTop = 170;
+  const bodyH = Math.max(entries.length, 1) * rowH + 40;
+  const H = bodyTop + bodyH + 60;
+
+  const rows = entries
+    .map((entry, i) => {
+      const y = bodyTop + 20 + i * rowH;
+      return `
+        <g>
+          <circle cx="40" cy="${y}" r="16" fill="#ffffff" stroke="#1f2937" stroke-width="1.5" />
+          <text x="40" y="${y + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">${escapeXml(String(i + 1))}</text>
+          <text x="70" y="${y + 5}" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(entry.name)}</text>
+          ${entry.squadNumber != null ? `<text x="${W - 40}" y="${y + 5}" text-anchor="end" font-size="14" font-weight="700" fill="#c9a7ff">#${entry.squadNumber}</text>` : ""}
+        </g>`;
+    })
+    .join("");
+
+  const emptyRow = entries.length === 0
+    ? `<text x="40" y="${bodyTop + 40}" font-size="16" fill="#c9c3e0">No athletes entered yet.</text>`
+    : "";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="#0e0b2e" />
+  <text x="40" y="60" font-size="14" font-weight="700" letter-spacing="3" fill="#c9a7ff">SPORTING ALLSTARS</text>
+  <text x="40" y="100" font-size="34" font-weight="800" fill="#ffffff">${escapeXml(headline)}</text>
+  <text x="40" y="130" font-size="16" fill="#c9c3e0">${escapeXml(subline)}</text>
+  <text x="40" y="155" font-size="13" font-weight="700" letter-spacing="2" fill="#c9a7ff">${escapeXml(eventLabel.toUpperCase())} — ENTRIES</text>
+  <rect x="0" y="${bodyTop}" width="${W}" height="${bodyH}" fill="rgba(255,255,255,0.04)" />
+  ${rows}
+  ${emptyRow}
+</svg>`;
+}
+
 export function downloadSvg(svg: string, filename: string) {
   const blob = new Blob([svg], { type: "image/svg+xml" });
   const url = URL.createObjectURL(blob);

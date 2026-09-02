@@ -5,7 +5,7 @@
 // resolves these types from local mock data (see `src/data.ts`); later,
 // a service can be swapped to fetch the same shapes from the real
 // Sporting Allstars API without any page component needing to change.
-import type { PositionKey, SportKey } from "./sportConfigs";
+import type { PositionKey, ResultType, SportKey } from "./sportConfigs";
 
 export type Organisation = {
   name: string;
@@ -380,4 +380,49 @@ export type SelectionInsight = {
   kind: InsightKind;
   title: string;
   body: string;
+};
+
+// --- Sprint 5 — Olympic Event Sports: Competitions, Event Entries, Results ---
+// See src/domain/sportConfigs.ts's SportEvent module comment for the
+// Sport -> Competition -> Event -> Entry workflow these types support, and
+// src/services/competitionService.ts / eventEntryService.ts /
+// resultsService.ts for how each is stored and mutated. Relay/crew *entry*
+// (who's running which leg / sitting which seat) deliberately reuses
+// TeamSelection above via a synthetic SportConfig rather than getting a
+// type of its own here — see sportConfigs.ts's buildEventSelectionConfig.
+
+/** An Athletics/Swimming/Rowing/Cycling meet — the Event Sports equivalent of a Fixture, but a Fixture isn't reused: a competition contests several SportEvents at once (see eventKeys), where a Fixture is always exactly one game. */
+export type Competition = {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  venue: string;
+  comp: string;
+  sport: SportKey;
+  /** SportEvent.key values (see sportConfigs.ts) this competition contests. */
+  eventKeys: string[];
+};
+
+/** An individual athlete's entry into one "individual"-type SportEvent at one competition — capped by SportEvent.entryLimit (see eventEntryService.addEntry). Not used for "relay"/"crew" events — those reuse TeamSelection instead (see the module comment above). */
+export type EventEntry = {
+  competitionId: string;
+  eventKey: string;
+  /** memberIds, in the order they were entered — not a running/seat order (that only applies to relay/crew events, which don't use this type). */
+  entries: string[];
+  status: SelectionStatus;
+  publishedAt?: string;
+  updatedAt?: string;
+};
+
+/** A recorded performance at a competition — one athlete for an "individual" event, several (ordered) for "relay"/"crew". `value` is always in the SportEvent's base unit (seconds for every timed event regardless of distance, metres for distance, raw points for points) so resultsService can rank and compare without per-event special-casing; see resultsService.formatResultValue for display. */
+export type Result = {
+  id: string;
+  competitionId: string;
+  eventKey: string;
+  sport: SportKey;
+  resultType: ResultType;
+  memberIds: string[];
+  value: number;
+  recordedAt: string;
 };

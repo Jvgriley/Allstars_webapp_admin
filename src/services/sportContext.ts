@@ -13,12 +13,28 @@ import type { SportKey } from "../domain/sportConfigs";
 import { sportConfigs } from "../domain/sportConfigs";
 import { createStore } from "./store";
 
-// The five Sprint 4 demonstration sports, in the order the brief lists
-// them. Rugby Union (the Sprint 3 demo sport) deliberately isn't offered
-// here — its existing fixture/team-sheet flow keeps working untouched if
-// visited directly, but the brief is specific that the Sport Selector
-// switches between these five.
-export const selectableSports: SportKey[] = ["football", "basketball", "rugbySevens", "hockey", "cricket"];
+// The five Sprint 4 team sports, in the order the brief lists them, plus
+// the four Sprint 5 event sports appended after. Rugby Union (the Sprint 3
+// demo sport) deliberately isn't offered here — its existing fixture/team-
+// sheet flow keeps working untouched if visited directly, but the brief is
+// specific that the Sport Selector switches between these named sports.
+// SportSelector.tsx groups this list into "Team Sports"/"Event Sports"
+// sections using each sport's SportConfig.category, rather than this array
+// needing two separate lists.
+export const selectableSports: SportKey[] = [
+  "football", "basketball", "rugbySevens", "hockey", "cricket",
+  "athletics", "swimming", "rowing", "cycling",
+];
+
+// Sprint 5 — Fixtures (and only Fixtures — see Sport.tsx's Fixtures()) is
+// genuinely team-sport-only: a Fixture is never created for an event sport
+// (those get a Competition instead — see domain/types.ts's Competition
+// module comment), so filtering its sport chips to selectableSports whole
+// would offer four chips that can only ever show "no fixtures for this
+// sport". Members/Teams keep using selectableSports unchanged — event
+// sports have real seeded rosters (see membersService.ts), so showing
+// those chips there is correct, not a quirk to filter out.
+export const teamSports: SportKey[] = selectableSports.filter((s) => sportConfigs[s].category === "team");
 
 type SportContextState = { currentSport: SportKey };
 const store = createStore<SportContextState>("sa4:sport-context", () => ({ currentSport: "football" }));
@@ -32,7 +48,11 @@ const store = createStore<SportContextState>("sa4:sport-context", () => ({ curre
 // scopes the roster to it; anything else (football, rugby union) keeps
 // drawing from the original football-seeded pool, exactly as Sprint 1–3
 // behaved, with no regression.
-const dedicatedRosterSports = new Set<SportKey>(["basketball", "rugbySevens", "hockey", "cricket"]);
+const dedicatedRosterSports = new Set<SportKey>([
+  "basketball", "rugbySevens", "hockey", "cricket",
+  // Sprint 5 — each event sport gets its own seeded athlete pool too (see membersService.ts).
+  "athletics", "swimming", "rowing", "cycling",
+]);
 
 /** Which `Member.sport` value a fixture/team-sheet roster for `sport` should be filtered to. */
 export function rosterSportFor(sport: SportKey): SportKey {

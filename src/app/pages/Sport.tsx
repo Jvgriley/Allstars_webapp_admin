@@ -9,7 +9,7 @@ import { sportConfigs, type SportKey } from "../../domain/sportConfigs";
 import type { Member } from "../../domain/types";
 import { sportService, useFixtures, useChallenges, useChallengeLeaderboard, useFixtureAvailability } from "../../services/sportService";
 import { useMembers } from "../../services/membersService";
-import { rosterSportFor, selectableSports, useCurrentSport } from "../../services/sportContext";
+import { rosterSportFor, teamSports, useCurrentSport } from "../../services/sportContext";
 
 function FixtureFormModal({ open, onOpenChange, fixture, defaultSport }: { open: boolean; onOpenChange: (o: boolean) => void; fixture?: Fixture; defaultSport?: SportKey }) {
   const isEdit = !!fixture;
@@ -73,7 +73,11 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
   // "All" stays one click away so nothing (including the Sprint 3 Rugby
   // Union demo fixture, which isn't one of the five selectable sports) is
   // ever hidden without a way back to it.
-  const [sportFilter, setSportFilter] = useState<SportKey | "all">(currentSport);
+  // Sprint 5 — the Sport Selector can be on an event sport (Athletics etc.),
+  // which Fixtures never has any of (see teamSports's module comment in
+  // sportContext.ts) — default to "all" rather than a filter no chip
+  // matches.
+  const [sportFilter, setSportFilter] = useState<SportKey | "all">(teamSports.includes(currentSport) ? currentSport : "all");
 
   if (!fixtures) return <PageLoading />;
 
@@ -84,7 +88,7 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
       <PageHeader eyebrow="Sport" title="Fixtures" subtitle="Every fixture connects to availability, calendar, car pooling and live streaming." actions={<Btn onClick={() => { setEditing(undefined); setFormOpen(true); }}><Plus className="size-4" /> New fixture</Btn>} />
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setSportFilter("all")} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === "all" ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>All sports</button>
-        {selectableSports.map((s) => (
+        {teamSports.map((s) => (
           <button key={s} onClick={() => setSportFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === s ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{sportConfigs[s].label}</button>
         ))}
       </div>

@@ -190,7 +190,117 @@ const cricketSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
   });
 });
 
-const seedMembers: Member[] = [...Array.from({ length: 32 }, (_, i) => seeded(i)), ...basketballSeed, ...rugbySevensSeed, ...hockeySeed, ...cricketSeed];
+// --- Sprint 5 — Olympic Event Sports: real, believable seed data for the
+// four new demonstration event sports. Every seeded member's
+// primaryPosition/secondaryPositions are event keys (see
+// domain/sportConfigs.ts's SportEvent module comment) rather than
+// formation positions or roles — e.g. an athlete's primaryPosition is
+// "100m", not a slot key — and every seeded relay/crew specialist also
+// gets that event's key as a secondaryPosition, so eventEntryService's
+// eligibility check and the Team Sheet/Event Entry candidate lists have
+// real, demonstrable eligible-vs-not-eligible variety, the same as every
+// Sprint 4 sport.
+
+// Athletics — Riverside Athletics Club.
+const athleticsPrimaries: { key: PositionKey; bucket: string }[] = [
+  { key: "100m", bucket: "Sprinter" },
+  { key: "200m", bucket: "Sprinter" },
+  { key: "400m", bucket: "Sprinter" },
+  { key: "800m", bucket: "Middle Distance" },
+  { key: "1500m", bucket: "Distance" },
+  { key: "100m-hurdles", bucket: "Hurdler" },
+  { key: "long-jump", bucket: "Field" },
+];
+const athleticsSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const p = athleticsPrimaries[i % athleticsPrimaries.length];
+  // Roughly every 3rd sprinter/hurdler also runs the relay — the same
+  // "not every wildcard" spread Sprint 4's secondary positions use.
+  const relayEligible = ["100m", "200m", "400m", "100m-hurdles"].includes(p.key) && i % 3 === 0;
+  return sportMember(i, {
+    idPrefix: "ath",
+    sport: "athletics",
+    team: i % 2 === 0 ? "Athletics Seniors" : "Athletics U18",
+    ageGroup: i % 2 === 0 ? "Senior" : "U18",
+    bucket: p.bucket as Member["position"],
+    primaryPosition: p.key,
+    secondaryPositions: relayEligible ? (["4x100m-relay"] as PositionKey[]) : undefined,
+  });
+});
+
+// Swimming — Riverside Swim Squad.
+const swimmingPrimaries: { key: PositionKey; bucket: string }[] = [
+  { key: "50m-freestyle", bucket: "Freestyle" },
+  { key: "100m-freestyle", bucket: "Freestyle" },
+  { key: "200m-freestyle", bucket: "Freestyle" },
+  { key: "100m-backstroke", bucket: "Backstroke" },
+  { key: "100m-breaststroke", bucket: "Breaststroke" },
+  { key: "100m-butterfly", bucket: "Butterfly" },
+];
+const swimmingSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const p = swimmingPrimaries[i % swimmingPrimaries.length];
+  const relayKey: PositionKey | undefined =
+    p.bucket === "Freestyle" && i % 3 === 0 ? "4x100m-freestyle-relay" : i % 4 === 1 ? "4x100m-medley-relay" : undefined;
+  return sportMember(i, {
+    idPrefix: "sw",
+    sport: "swimming",
+    team: i % 2 === 0 ? "Swimming Seniors" : "Swimming U18",
+    ageGroup: i % 2 === 0 ? "Senior" : "U18",
+    bucket: p.bucket as Member["position"],
+    primaryPosition: p.key,
+    secondaryPositions: relayKey ? [relayKey] : undefined,
+  });
+});
+
+// Rowing — Riverside Boat Club. Every crew event has openEligibility (see
+// sportConfigs.ts's buildEventSelectionConfig), so primaryPosition here
+// records a rower's specialist boat class for display/roster purposes
+// rather than gating seat selection the way formation positions do.
+const rowingPrimaries: { key: PositionKey; bucket: string }[] = [
+  { key: "coxless-pair", bucket: "Sweep" },
+  { key: "coxed-four", bucket: "Sweep" },
+  { key: "quad-sculls", bucket: "Sculling" },
+  { key: "eight", bucket: "Sweep" },
+];
+const rowingSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const p = rowingPrimaries[i % rowingPrimaries.length];
+  // One in five rowers doubles as a coxswain — a real, distinct skill.
+  const coxSecondary = i % 5 === 0;
+  return sportMember(i, {
+    idPrefix: "rw",
+    sport: "rowing",
+    team: i % 2 === 0 ? "Boat Club 1st Squad" : "Boat Club Development",
+    ageGroup: "Senior",
+    bucket: coxSecondary ? "Cox" : (p.bucket as Member["position"]),
+    primaryPosition: p.key,
+    secondaryPositions: coxSecondary ? (["eight"] as PositionKey[]) : undefined,
+  });
+});
+
+// Cycling — Riverside Cycling Club.
+const cyclingPrimaries: { key: PositionKey; bucket: string }[] = [
+  { key: "road-race", bucket: "Road" },
+  { key: "time-trial", bucket: "Time Trial" },
+  { key: "criterium", bucket: "Criterium" },
+];
+const cyclingSeed: Member[] = Array.from({ length: 14 }, (_, i) => {
+  const p = cyclingPrimaries[i % cyclingPrimaries.length];
+  const pursuitEligible = i % 3 === 0;
+  return sportMember(i, {
+    idPrefix: "cy",
+    sport: "cycling",
+    team: i % 2 === 0 ? "Cycling Seniors" : "Cycling Development",
+    ageGroup: i % 2 === 0 ? "Senior" : "U18",
+    bucket: p.bucket as Member["position"],
+    primaryPosition: p.key,
+    secondaryPositions: pursuitEligible ? (["team-pursuit"] as PositionKey[]) : undefined,
+  });
+});
+
+const seedMembers: Member[] = [
+  ...Array.from({ length: 32 }, (_, i) => seeded(i)),
+  ...basketballSeed, ...rugbySevensSeed, ...hockeySeed, ...cricketSeed,
+  ...athleticsSeed, ...swimmingSeed, ...rowingSeed, ...cyclingSeed,
+];
 
 type MembersState = { members: Member[]; extraTeams: string[] };
 

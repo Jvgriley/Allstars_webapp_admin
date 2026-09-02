@@ -6,6 +6,10 @@ import type { PageId } from "../nav";
 import { useRevenueTrend, useParticipationTrend } from "../../services/metricsService";
 import { useFinance } from "../../services/financeService";
 import { useRankings } from "../../services/rankingsService";
+import { useResults, resultsService, formatResultValue } from "../../services/resultsService";
+import { useCompetitions } from "../../services/competitionService";
+import { useMembers } from "../../services/membersService";
+import { sportConfigs } from "../../domain/sportConfigs";
 
 const tabs = ["Overview", "Participation", "Performance", "Members", "Finance", "Community", "Challenges", "Retention", "Content", "Live", "Sponsors"];
 const filters = ["Date", "Team", "Sport", "Age", "Gender", "Membership", "Region"];
@@ -84,10 +88,27 @@ const rankBy = ["Overall", "Performance", "Training", "Participation", "Communit
 
 export function Rankings({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: rankings } = useRankings();
+  const { data: results = [] } = useResults();
+  const { data: competitions = [] } = useCompetitions();
+  const { data: members = [] } = useMembers();
   const [by, setBy] = useState("Overall");
   const [scope, setScope] = useState("National");
 
   if (!rankings) return <PageLoading />;
+
+  // Sprint 5 — Event Sports rankings, deterministic from resultsService the
+  // same way club rankings above are deterministic mock data: one card per
+  // competition+event that has a recorded result, best performance first.
+  // A genuinely different shape from the club table above (per-athlete
+  // performance vs per-club league position), so it's its own section
+  // rather than forced into the same Ranking[] shape.
+  const groups = Array.from(new Set(results.map((r) => `${r.competitionId}:${r.eventKey}`))).map((key) => {
+    const [competitionId, eventKey] = key.split(":");
+    const competition = competitions.find((c) => c.id === competitionId);
+    const event = competition ? sportConfigs[competition.sport].events?.find((e) => e.key === eventKey) : undefined;
+    if (!competition || !event) return undefined;
+    return { competition, event, ranked: resultsService.getRankings(competitionId, eventKey, event).slice(0, 3) };
+  }).filter((g): g is NonNullable<typeof g> => !!g);
 
   return (
     <div className="space-y-6">
@@ -129,6 +150,28 @@ export function Rankings({ navigate }: { navigate: (p: PageId, arg?: string) => 
               </div>
             ))}
           </Panel>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-3 font-display text-xl text-[var(--sa-ink)]">Event Rankings</h3>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {groups.map(({ competition, event, ranked }) => (
+            <Panel key={`${competition.id}:${event.key}`} title={event.label} eyebrow={competition.name} action={<Btn size="sm" variant="ghost" onClick={() => navigate("competition-detail", competition.id)}>View</Btn>}>
+              <div className="space-y-1.5">
+                {ranked.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-sm">
+                    <span className="font-display text-base text-muted-foreground">{r.position}</span>
+                    <span className="flex-1 truncate px-2 font-semibold text-[var(--sa-ink)]">
+                      {r.memberIds.map((id) => members.find((m) => m.id === id)?.name.split(" ")[0]).filter(Boolean).join(", ") || "Athlete"}
+                    </span>
+                    <span className="font-semibold text-[var(--sa-ink)]">{formatResultValue(event.resultType, r.value, event.resultUnit)}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          ))}
+          {groups.length === 0 && <div className="col-span-full py-4 text-center text-sm text-muted-foreground">No results recorded yet.</div>}
         </div>
       </div>
     </div>

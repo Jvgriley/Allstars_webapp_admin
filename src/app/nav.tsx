@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ListChecks, Sparkles, Users, Trophy, CalendarDays, Car,
   Activity, Flag, MessageSquareText, Radio, Wallet, ShoppingBag, Handshake,
-  Gift, HeartPulse, Shield, Plug, BarChart3, Video, LibraryBig, Venus,
+  Gift, HeartPulse, Shield, Plug, BarChart3, Video, LibraryBig, Venus, Medal,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -9,6 +9,8 @@ export type PageId =
   | "dashboard" | "action-centre"
   | "members" | "member-profile" | "teams"
   | "fixtures" | "availability" | "challenges" | "team-sheet"
+  // Sprint 5 — Olympic Event Sports.
+  | "competitions" | "competition-detail" | "event-entry"
   | "intelligence" | "member-stats" | "analytics" | "rankings"
   | "calendar" | "carpool" | "communications" | "safeguarding"
   | "biotrack"
@@ -42,6 +44,7 @@ export const navSections: NavSection[] = [
     items: [
       { id: "fixtures", label: "Fixtures", icon: Flag },
       { id: "availability", label: "Availability", icon: ListChecks },
+      { id: "competitions", label: "Competitions", icon: Medal },
       { id: "challenges", label: "Challenges", icon: Trophy },
     ],
   },

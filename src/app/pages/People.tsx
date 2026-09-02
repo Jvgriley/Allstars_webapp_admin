@@ -11,6 +11,7 @@ import type { SportKey } from "../../domain/sportConfigs";
 import { sportConfigs } from "../../domain/sportConfigs";
 import { membersService, useMembers, useMember, useMemberStatTrend, useTeams } from "../../services/membersService";
 import { selectableSports, useCurrentSport } from "../../services/sportContext";
+import { resultsService, formatResultValue } from "../../services/resultsService";
 
 const membershipTone = (m: Member["membership"]) => (m === "Active" ? "green" : m === "Pending" ? "orange" : "red");
 const payTone = (p: Member["payments"]) => (p === "Paid" ? "green" : p === "Due" ? "orange" : "red");
@@ -183,6 +184,13 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
 
   if (!m || !memberStatTrend) return <PageLoading />;
 
+  // Sprint 5 — only Athletics/Swimming/Rowing/Cycling members have
+  // recordable individual/crew performances (see resultsService.ts);
+  // every other sport keeps this page exactly as Sprint 3/4 built it.
+  const eventSportKeys = ["athletics", "swimming", "rowing", "cycling"] as const;
+  const isEventSportMember = m.sport && (eventSportKeys as readonly string[]).includes(m.sport);
+  const personalBests = isEventSportMember && m.sport ? resultsService.getPersonalBests(m.id, m.sport) : [];
+
   const sendMessage = () => {
     if (!messageText.trim()) {
       toast.error("Write a message before sending.");
@@ -235,6 +243,23 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
         </Panel>
         <InsightCard kind="TREND" title="Most consistent run this season" body={`${m.name.split(" ")[0]} has recorded their most consistent six-week participation period this season. Training volume is 18% above the three-month average.`} cta="Open member stats" onAction={() => navigate("member-stats", m.id)} />
       </div>
+
+      {isEventSportMember && (
+        <Panel eyebrow="Performance" title="Personal bests">
+          {personalBests.length === 0 ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">No results recorded for {m.name.split(" ")[0]} yet.</div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {personalBests.map((pb) => (
+                <div key={pb.eventKey} className="rounded-xl border border-border p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{pb.eventLabel}</div>
+                  <div className="mt-1 font-display text-2xl text-[var(--sa-ink)]">{formatResultValue(pb.resultType, pb.value, pb.resultUnit)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
 
       <Panel eyebrow="Live → Player profile" title="Recent match media">
         <div className="grid gap-3 sm:grid-cols-3">

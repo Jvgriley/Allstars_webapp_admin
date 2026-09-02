@@ -34,10 +34,19 @@
 //    future "event" category (Athletics, Swimming, Cycling, Rowing) can be
 //    filtered/grouped differently without a breaking change.
 
-export type SportKey = "football" | "rugby" | "basketball" | "rugbySevens" | "hockey" | "cricket";
+export type SportKey =
+  | "football" | "rugby" | "basketball" | "rugbySevens" | "hockey" | "cricket"
+  // Sprint 5 — Olympic Event Sports.
+  | "athletics" | "swimming" | "rowing" | "cycling";
 
 export type SelectionMode = "formation" | "role" | "event";
-export type SurfaceKind = "football-pitch" | "rugby-pitch" | "basketball-court" | "hockey-pitch" | "none";
+export type SurfaceKind = "football-pitch" | "rugby-pitch" | "basketball-court" | "hockey-pitch" | "none"
+  // Sprint 5 — the one genuinely new surface: a rowing boat's seats,
+  // rendered as a narrow lane rather than a rectangular pitch/court (see
+  // Pitch.tsx). Athletics/Swimming/Cycling individual events don't place
+  // a marker on a surface at all (see the Event Entry page), so they use
+  // "none" like Cricket does.
+  | "rowing-boat";
 export type SportCategory = "team" | "event";
 
 /** Scoped to a single SportConfig - never compared across sports. */
@@ -65,6 +74,46 @@ export type SportFormation = {
   benchSize: number;
 };
 
+// ---------------------------------------------------------------------------
+// Sprint 5 — Olympic Event Sports. Athletics/Swimming/Rowing/Cycling don't
+// fit "place a player in a formation" or "order a lineup" at the *sport*
+// level — the real workflow is Sport -> Competition -> Event -> Entry (see
+// domain/types.ts's Competition type and services/competitionService.ts).
+// `SportEvent` is the thing a competition actually contests ("100m",
+// "Coxless Pair", "4x100m Medley Relay"): three shapes share one type
+// rather than three parallel ones —
+//  - "individual": one athlete per entry, capped by `entryLimit` (handled
+//    by services/eventEntryService.ts — no formation/role machinery needed).
+//  - "relay": an ordered running order with no surface coordinate — this
+//    reuses the exact "role" selectionMode + teamSheetService.swapSlots
+//    machinery Cricket's batting order already proved out, via a synthetic
+//    per-event SportConfig (see buildEventSelectionConfig below).
+//  - "crew": a boat's seats, which DO have a meaningful layout (bow to
+//    stroke, cox off to the side) — this reuses "formation" selectionMode
+//    + <Pitch surface="rowing-boat"/> the same way, seat coordinates instead
+//    of pitch coordinates.
+// -------------------------------------------------------------------------
+export type EventCategory = "Men" | "Women" | "Mixed" | "Open";
+export type SportEventType = "individual" | "relay" | "crew";
+export type ResultType = "time" | "distance" | "points";
+/** "asc" — lower is better (every timed event). "desc" — higher is better (distance, points). */
+export type RankingDirection = "asc" | "desc";
+
+export type SportEvent = {
+  key: string;
+  label: string;
+  type: SportEventType;
+  category: EventCategory;
+  resultType: ResultType;
+  resultUnit: string;
+  rankingDirection: RankingDirection;
+  /** "individual" events only — max athletes the club may enter per competition (see eventEntryService.addEntry). */
+  entryLimit?: number;
+  /** "relay"/"crew" events only — how many legs/seats, and what each is called (relay leg order, or boat seat from bow to stroke, cox last). */
+  crewSize?: number;
+  legLabels?: string[];
+};
+
 export type SportConfig = {
   key: SportKey;
   label: string;
@@ -87,6 +136,19 @@ export type SportConfig = {
    * cross-sport/legacy members (see membersService.ts).
    */
   fallbackEligibility: Record<string, PositionKey[]>;
+  /** Sprint 5 — the events this sport's competitions can contest (see Competition.eventKeys). Undefined/empty for every Sprint 3/4 team sport. */
+  events?: SportEvent[];
+  /**
+   * Sprint 5 — when true, every roster member is eligible for every slot in
+   * this config, bypassing getEligiblePositions entirely. Used by the
+   * synthetic per-event configs buildEventSelectionConfig() generates for
+   * relay legs and crew seats, where the app doesn't model which specific
+   * leg/seat an athlete specialises in (the same simplification Cricket's
+   * shared "XI" position key already makes for batting order — see
+   * teamSheetService.isEligibleForSlot). Undefined/false for every existing
+   * sport, so Sprint 3/4 eligibility behaviour is unchanged.
+   */
+  openEligibility?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -312,6 +374,89 @@ const cricketPlayingXI: SportFormation = {
 };
 
 // ---------------------------------------------------------------------------
+// Sprint 5 - Athletics. "Individual" events (track/field, capped entries)
+// plus one "relay" event (4x100m) proving the ordered-running-order reuse
+// of Cricket's batting-order mechanism. selectionMode "event" at the sport
+// level — there is no single squad formation, only Competition -> Event ->
+// Entry (see competitionService.ts / eventEntryService.ts). `positions`
+// mirrors `events` 1:1 so every existing generic lookup
+// (config.positions.find(p => p.key === member.primaryPosition)) keeps
+// working unchanged — a member's primaryPosition/secondaryPositions for an
+// event sport are event keys ("100m", "long-jump"), not formation
+// positions. See membersService.ts's athleticsSeed.
+// ---------------------------------------------------------------------------
+
+const athleticsEvents: SportEvent[] = [
+  { key: "100m", label: "100m", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "200m", label: "200m", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "400m", label: "400m", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "800m", label: "800m", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "1500m", label: "1500m", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "100m-hurdles", label: "100m Hurdles", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "long-jump", label: "Long Jump", type: "individual", category: "Open", resultType: "distance", resultUnit: "m", rankingDirection: "desc", entryLimit: 2 },
+  { key: "4x100m-relay", label: "4x100m Relay", type: "relay", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 4, legLabels: ["Leg 1", "Leg 2", "Leg 3", "Leg 4"] },
+];
+
+const athleticsPositions: SportPosition[] = athleticsEvents.map((e) => ({ key: e.key, label: e.label, shortLabel: e.label }));
+
+// ---------------------------------------------------------------------------
+// Sprint 5 - Swimming. Six individual strokes/distances plus two relay
+// types (Freestyle and Medley) — the Medley's leg order is fixed by rule
+// (Backstroke, Breaststroke, Butterfly, Freestyle), unlike Athletics'
+// interchangeable relay legs, which is exactly why `legLabels` is
+// per-event data rather than a generic "Leg N" default.
+// ---------------------------------------------------------------------------
+
+const swimmingEvents: SportEvent[] = [
+  { key: "50m-freestyle", label: "50m Freestyle", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "100m-freestyle", label: "100m Freestyle", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "200m-freestyle", label: "200m Freestyle", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "100m-backstroke", label: "100m Backstroke", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "100m-breaststroke", label: "100m Breaststroke", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "100m-butterfly", label: "100m Butterfly", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "4x100m-freestyle-relay", label: "4x100m Freestyle Relay", type: "relay", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 4, legLabels: ["Leg 1", "Leg 2", "Leg 3", "Leg 4"] },
+  { key: "4x100m-medley-relay", label: "4x100m Medley Relay", type: "relay", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 4, legLabels: ["Backstroke Leg", "Breaststroke Leg", "Butterfly Leg", "Freestyle Leg"] },
+];
+
+const swimmingPositions: SportPosition[] = swimmingEvents.map((e) => ({ key: e.key, label: e.label, shortLabel: e.label }));
+
+// ---------------------------------------------------------------------------
+// Sprint 5 - Rowing. THE second architectural proof point this sprint
+// makes, alongside Cricket's Sprint 4 one: every boat class is a "crew"
+// event, which needs almost no new mechanism at all — a boat class is just
+// a formation with seat coordinates down a narrow lane instead of a pitch,
+// so it reuses <Pitch surface="rowing-boat"/>, <SlotChip/> and
+// teamSheetService completely unchanged (see buildEventSelectionConfig
+// below). A cox is modelled as its own genuinely distinct position (not
+// just another seat), matching the real sport.
+// ---------------------------------------------------------------------------
+
+const rowingEvents: SportEvent[] = [
+  { key: "coxless-pair", label: "Coxless Pair", type: "crew", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 2, legLabels: ["Bow", "Stroke"] },
+  { key: "coxed-four", label: "Coxed Four", type: "crew", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 5, legLabels: ["Bow", "2", "3", "Stroke", "Cox"] },
+  { key: "quad-sculls", label: "Quad Sculls", type: "crew", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 4, legLabels: ["Bow", "2", "3", "Stroke"] },
+  { key: "eight", label: "Eight", type: "crew", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 9, legLabels: ["Bow", "2", "3", "4", "5", "6", "7", "Stroke", "Cox"] },
+];
+
+const rowingPositions: SportPosition[] = rowingEvents.map((e) => ({ key: e.key, label: e.label, shortLabel: e.label }));
+
+// ---------------------------------------------------------------------------
+// Sprint 5 - Cycling. Three individual disciplines plus Team Pursuit — a
+// "relay-like" event in the brief's own words, so it's modelled exactly
+// like Athletics/Swimming's relays (ordered running order, no coordinate),
+// not like Rowing's crew boats.
+// ---------------------------------------------------------------------------
+
+const cyclingEvents: SportEvent[] = [
+  { key: "road-race", label: "Road Race", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 3 },
+  { key: "time-trial", label: "Time Trial", type: "individual", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", entryLimit: 2 },
+  { key: "criterium", label: "Criterium", type: "individual", category: "Open", resultType: "points", resultUnit: "pts", rankingDirection: "desc", entryLimit: 2 },
+  { key: "team-pursuit", label: "Team Pursuit", type: "relay", category: "Open", resultType: "time", resultUnit: "s", rankingDirection: "asc", crewSize: 4, legLabels: ["Rider 1", "Rider 2", "Rider 3", "Rider 4"] },
+];
+
+const cyclingPositions: SportPosition[] = cyclingEvents.map((e) => ({ key: e.key, label: e.label, shortLabel: e.label }));
+
+// ---------------------------------------------------------------------------
 
 export const sportConfigs: Record<SportKey, SportConfig> = {
   football: {
@@ -431,26 +576,162 @@ export const sportConfigs: Record<SportKey, SportConfig> = {
       Winger: ["BAT"],
     },
   },
+  // -------------------------------------------------------------------
+  // Sprint 5 - Olympic Event Sports. selectionMode "event" — no single
+  // squad formation at the sport level (see the SportEvent module comment
+  // above); `formations` is deliberately empty because nothing calls
+  // teamSheetService with this top-level config directly — every actual
+  // selection (a relay leg order, a boat's crew) goes through a synthetic
+  // per-event config from buildEventSelectionConfig() instead, keyed by
+  // competition+event, never by sport.
+  // -------------------------------------------------------------------
+  athletics: {
+    key: "athletics",
+    label: "Athletics",
+    category: "event",
+    selectionMode: "event",
+    surface: "none",
+    surfaceLabel: "Track & Field",
+    benchLabel: "Reserves",
+    startersLabel: "Squad Entries",
+    positions: athleticsPositions,
+    formations: [],
+    fallbackEligibility: {},
+    events: athleticsEvents,
+  },
+  swimming: {
+    key: "swimming",
+    label: "Swimming",
+    category: "event",
+    selectionMode: "event",
+    surface: "none",
+    surfaceLabel: "Pool",
+    benchLabel: "Reserves",
+    startersLabel: "Squad Entries",
+    positions: swimmingPositions,
+    formations: [],
+    fallbackEligibility: {},
+    events: swimmingEvents,
+  },
+  rowing: {
+    key: "rowing",
+    label: "Rowing",
+    category: "event",
+    selectionMode: "event",
+    surface: "none",
+    surfaceLabel: "Water",
+    benchLabel: "Reserves",
+    startersLabel: "Crew Entries",
+    positions: rowingPositions,
+    formations: [],
+    fallbackEligibility: {},
+    events: rowingEvents,
+  },
+  cycling: {
+    key: "cycling",
+    label: "Cycling",
+    category: "event",
+    selectionMode: "event",
+    surface: "none",
+    surfaceLabel: "Road & Track",
+    benchLabel: "Reserves",
+    startersLabel: "Squad Entries",
+    positions: cyclingPositions,
+    formations: [],
+    fallbackEligibility: {},
+    events: cyclingEvents,
+  },
 };
 
 export function positionLabel(sport: SportKey, key: PositionKey): SportPosition | undefined {
   return sportConfigs[sport].positions.find((p) => p.key === key);
 }
 
+/**
+ * Sprint 5 — builds the synthetic, per-event SportConfig a relay leg order
+ * or a boat's crew is actually selected through. This is the whole reuse
+ * trick the module comment above describes: nothing new is added to
+ * teamSheetService, <Pitch/>, <SlotChip/>, PlayerPickerModal or
+ * exportSvg.ts — they already work on any SportConfig/SportFormation, so a
+ * config shaped like this is all a relay/crew event needs. Callers pass the
+ * resulting config's own formation id (== `${competitionId}:${event.key}`)
+ * as the "fixtureId" argument to every teamSheetService function, reusing
+ * its existing session store rather than inventing a parallel one.
+ */
+export function buildEventSelectionConfig(sport: SportKey, competitionId: string, event: SportEvent): SportConfig {
+  const base = sportConfigs[sport];
+  const formationId = `${competitionId}:${event.key}`;
+
+  if (event.type === "crew") {
+    // Seats are laid down a narrow lane from bow (y small) to stroke (y
+    // large); a cox — a genuinely distinct role, not just another seat —
+    // sits off to the side near the stroke end, matching a real boat.
+    const seatLabels = (event.legLabels ?? []).filter((l) => l !== "Cox");
+    const hasCox = (event.legLabels ?? []).includes("Cox");
+    const n = seatLabels.length;
+    const slots: FormationSlot[] = seatLabels.map((_, i) => ({
+      slotId: `seat-${i + 1}`,
+      position: `SEAT-${i}`,
+      x: 50 + (i % 2 === 0 ? -9 : 9),
+      y: n > 1 ? 10 + (i * (76 / (n - 1))) : 46,
+    }));
+    if (hasCox) slots.push({ slotId: "seat-cox", position: "COX", x: 50, y: 92 });
+    const positions: SportPosition[] = [
+      ...seatLabels.map((label, i) => ({ key: `SEAT-${i}`, label: `${label} Seat`, shortLabel: label })),
+      ...(hasCox ? [{ key: "COX", label: "Cox", shortLabel: "Cox" }] : []),
+    ];
+    return {
+      ...base,
+      selectionMode: "formation",
+      surface: "rowing-boat",
+      startersLabel: event.label,
+      benchLabel: "Reserves",
+      supportsCaptain: true,
+      supportsViceCaptain: false,
+      openEligibility: true,
+      positions,
+      formations: [{ id: formationId, label: event.label, benchSize: 2, slots }],
+    };
+  }
+
+  // "relay" — an ordered running order with no surface coordinate, reusing
+  // the exact selectionMode "role" mechanism Cricket's batting order proves
+  // out (see teamSheetService.swapSlots and OrderedLineup.tsx).
+  const legLabels = event.legLabels ?? [];
+  const slots: FormationSlot[] = legLabels.map((_, i) => ({ slotId: `leg-${i + 1}`, position: `LEG-${i}` }));
+  const positions: SportPosition[] = legLabels.map((label, i) => ({ key: `LEG-${i}`, label, shortLabel: label }));
+  return {
+    ...base,
+    selectionMode: "role",
+    surface: "none",
+    startersLabel: event.label,
+    benchLabel: "Reserves",
+    supportsCaptain: true,
+    supportsViceCaptain: false,
+    openEligibility: true,
+    positions,
+    formations: [{ id: formationId, label: event.label, benchSize: 2, slots }],
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Future Event Sports (Sprint 5+) - NOT built this sprint. Documented here
-// so the architectural seam is visible where the rest of this file lives.
+// Event Sports (Sprint 5) - built. This is what the Sprint 4 note above
+// this comment used to describe as future work; keeping the history since
+// it's still the accurate description of *why* the shapes below look the
+// way they do.
 //
-// `selectionMode: "event"` is reserved above for sports like Athletics,
-// Swimming, Cycling and Rowing, where the workflow isn't "place a player in
-// a formation slot" or "order a batting lineup" but:
-//   Sport -> Event/Competition -> Discipline/Event -> Availability/Eligibility
-//   -> Athlete Entry -> Relay/Crew selection (where relevant) -> Publish Entry
-// The shape that would need adding - not built now - is roughly an
-// `EventDiscipline` (e.g. "100m", "4x100m Relay", "K1 200m") replacing
-// `SportFormation.slots` with entries, each either a single athlete slot or
-// a relay/crew slot with an internal running/seat order (reusing the same
-// slot-order-as-sequence trick cricket's batting order already proves out).
-// `teamSheetService` would gain an `EventEntry` alongside `TeamSelection`
-// rather than replacing it, since a club will run formation/role sports and
-// event sports side by side, not one or the other.
+// `selectionMode: "event"` (Athletics, Swimming, Cycling, Rowing above)
+// means the workflow isn't "place a player in a formation slot" or "order
+// a batting lineup" at the sport level, but:
+//   Sport -> Competition -> Event -> Availability/Eligibility -> Athlete
+//   Entry -> Relay/Crew selection (where relevant) -> Publish Entry
+// See domain/types.ts's Competition type, services/competitionService.ts,
+// services/eventEntryService.ts (individual/capped entries) and
+// services/resultsService.ts (recorded results, PBs, rankings). Relay legs
+// and boat crews don't get a new selection mechanism at all — they reuse
+// `teamSheetService`/`<Pitch/>`/`<SlotChip/>` exactly as Sprint 3/4 built
+// them, via a synthetic per-event SportConfig from
+// buildEventSelectionConfig() above, keyed by competition+event rather
+// than by sport. That reuse — not a parallel EventEntry-selection system —
+// is the actual Sprint 5 architectural point, the same way Cricket's
+// role-based batting order was Sprint 4's.

@@ -61,6 +61,12 @@ export const teamSheetService = {
   },
 
   isEligibleForSlot(member: Member, config: SportConfig, positionKey: PositionKey): boolean {
+    // Sprint 5 — the synthetic per-event configs buildEventSelectionConfig()
+    // builds for relay legs/boat seats set openEligibility, since the app
+    // doesn't model which specific leg/seat an athlete specialises in —
+    // any entered athlete can fill any leg/seat, generalising the same
+    // simplification Cricket already made (below).
+    if (config.openEligibility) return true;
     // Sprint 4 — role-based sports (cricket) use one generic "XI" position
     // on every slot (see sportConfigs.ts's cricketPlayingXI module comment):
     // batting-order position isn't gated by role, so anyone in the roster
