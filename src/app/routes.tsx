@@ -31,6 +31,9 @@ const Fixtures = lazy(() => import("./pages/Sport").then((m) => ({ default: m.Fi
 const Availability = lazy(() => import("./pages/Sport").then((m) => ({ default: m.Availability })));
 const Challenges = lazy(() => import("./pages/Sport").then((m) => ({ default: m.Challenges })));
 const TeamSheetPage = lazy(() => import("./pages/TeamSheet").then((m) => ({ default: m.TeamSheetPage })));
+const CompetitionsPage = lazy(() => import("./pages/Competitions").then((m) => ({ default: m.CompetitionsPage })));
+const CompetitionDetailPage = lazy(() => import("./pages/Competitions").then((m) => ({ default: m.CompetitionDetailPage })));
+const EventEntryPage = lazy(() => import("./pages/Competitions").then((m) => ({ default: m.EventEntryPage })));
 const Analytics = lazy(() => import("./pages/Analytics").then((m) => ({ default: m.Analytics })));
 const Rankings = lazy(() => import("./pages/Analytics").then((m) => ({ default: m.Rankings })));
 const CalendarPage = lazy(() => import("./pages/Operations").then((m) => ({ default: m.CalendarPage })));
@@ -95,6 +98,20 @@ function TeamSheetRoute() {
   return <TeamSheetPage fixtureId={fixtureId} navigate={useAppNavigate()} />;
 }
 
+function CompetitionsRoute() {
+  return <CompetitionsPage navigate={useAppNavigate()} />;
+}
+
+function CompetitionDetailRoute() {
+  const { competitionId } = useParams();
+  return <CompetitionDetailPage competitionId={competitionId} navigate={useAppNavigate()} />;
+}
+
+function EventEntryRoute() {
+  const { competitionId, eventKey } = useParams();
+  return <EventEntryPage competitionId={competitionId} eventKey={eventKey} navigate={useAppNavigate()} />;
+}
+
 function RankingsRoute() {
   return <Rankings navigate={useAppNavigate()} />;
 }
@@ -136,6 +153,9 @@ export function AppRoutes() {
           <Route path="fixtures" element={<FixturesRoute />} />
           <Route path="fixtures/:fixtureId/team-sheet" element={<TeamSheetRoute />} />
           <Route path="availability" element={<AvailabilityRoute />} />
+          <Route path="competitions" element={<CompetitionsRoute />} />
+          <Route path="competitions/:competitionId" element={<CompetitionDetailRoute />} />
+          <Route path="competitions/:competitionId/events/:eventKey" element={<EventEntryRoute />} />
           <Route path="challenges" element={<ChallengesRoute />} />
 
           <Route path="intelligence" element={<IntelligenceRoute />} />

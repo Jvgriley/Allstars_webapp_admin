@@ -28,6 +28,18 @@ export function pagePath(id: PageId, arg?: string): string {
       return "/challenges";
     case "team-sheet":
       return `/fixtures/${arg ?? ""}/team-sheet`;
+    case "competitions":
+      return "/competitions";
+    case "competition-detail":
+      return `/competitions/${arg ?? ""}`;
+    case "event-entry": {
+      // Sprint 5 — a single PageId arg carries both ids, "|"-joined (see
+      // Competitions.tsx's navigate("event-entry", `${competitionId}|${eventKey}`))
+      // so every other page can keep calling navigate(id, arg) with the
+      // same one-arg signature everything else already uses.
+      const [competitionId, eventKey] = (arg ?? "").split("|");
+      return `/competitions/${competitionId ?? ""}/events/${eventKey ?? ""}`;
+    }
     case "intelligence":
       return "/intelligence";
     case "analytics":

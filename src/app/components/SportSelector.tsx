@@ -14,7 +14,7 @@
 // gets a full-width bottom sheet with large tap targets, its own layout
 // rather than the desktop menu just shrunk.
 import { useState } from "react";
-import { ChevronDown, Dribbble, Shield, Trophy, Waves, X, Zap } from "lucide-react";
+import { Bike, ChevronDown, Dribbble, Droplets, Sailboat, Shield, Timer, Trophy, Waves, X, Zap } from "lucide-react";
 import type { ComponentType } from "react";
 import { sportConfigs, type SportKey } from "../../domain/sportConfigs";
 import { selectableSports, sportContextService, useCurrentSport } from "../../services/sportContext";
@@ -31,6 +31,11 @@ const sportIcon: Record<SportKey, ComponentType<{ className?: string }>> = {
   rugbySevens: Shield,
   hockey: Waves,
   cricket: Trophy,
+  // Sprint 5 — Olympic Event Sports.
+  athletics: Timer,
+  swimming: Droplets,
+  rowing: Sailboat,
+  cycling: Bike,
 };
 
 function SportRow({ sport, active, onClick }: { sport: SportKey; active: boolean; onClick: () => void }) {
@@ -52,6 +57,26 @@ function SportRow({ sport, active, onClick }: { sport: SportKey; active: boolean
         <div className={cx("text-xs", active ? "text-white/80" : "text-muted-foreground")}>{config.startersLabel} · {config.surfaceLabel}</div>
       </div>
     </button>
+  );
+}
+
+// Sprint 5 — group the (now nine) selectable sports into "Team Sports"/
+// "Event Sports" sections using each SportConfig's own `category`, rather
+// than selectableSports itself needing to become two arrays.
+const teamSports = selectableSports.filter((s) => sportConfigs[s].category === "team");
+const eventSports = selectableSports.filter((s) => sportConfigs[s].category === "event");
+
+function SportGroup({ title, sports, currentSport, onChoose }: { title: string; sports: SportKey[]; currentSport: SportKey; onChoose: (s: SportKey) => void }) {
+  if (sports.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{title}</div>
+      <div className="space-y-1">
+        {sports.map((sport) => (
+          <SportRow key={sport} sport={sport} active={sport === currentSport} onClick={() => onChoose(sport)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -90,19 +115,17 @@ export function SportSelector() {
               <span className="font-display text-lg text-[var(--sa-ink)]">Switch sport</span>
               <button onClick={() => setOpen(false)} className="rounded p-1 hover:bg-muted"><X className="size-5" /></button>
             </div>
-            <div className="space-y-1.5">
-              {selectableSports.map((sport) => (
-                <SportRow key={sport} sport={sport} active={sport === currentSport} onClick={() => choose(sport)} />
-              ))}
+            <div className="space-y-3">
+              <SportGroup title="Team Sports" sports={teamSports} currentSport={currentSport} onChoose={choose} />
+              <SportGroup title="Event Sports" sports={eventSports} currentSport={currentSport} onChoose={choose} />
             </div>
           </div>
 
           {/* Desktop / tablet: anchored dropdown panel. */}
           <div className="absolute left-0 top-full z-50 mt-2 hidden w-72 rounded-2xl border border-border bg-card p-2 shadow-xl sm:block">
-            <div className="space-y-1">
-              {selectableSports.map((sport) => (
-                <SportRow key={sport} sport={sport} active={sport === currentSport} onClick={() => choose(sport)} />
-              ))}
+            <div className="space-y-3">
+              <SportGroup title="Team Sports" sports={teamSports} currentSport={currentSport} onChoose={choose} />
+              <SportGroup title="Event Sports" sports={eventSports} currentSport={currentSport} onChoose={choose} />
             </div>
           </div>
         </>

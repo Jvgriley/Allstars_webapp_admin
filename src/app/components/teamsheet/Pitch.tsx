@@ -22,6 +22,10 @@ const aspectRatio: Record<SurfaceKind, string> = {
   "basketball-court": "5 / 8",
   "hockey-pitch": "60 / 100",
   none: "68 / 100",
+  // Sprint 5 — a rowing boat is a narrow lane, not a rectangular
+  // pitch/court, so it gets a genuinely different (tall, thin) aspect
+  // ratio rather than reusing one of the above.
+  "rowing-boat": "28 / 100",
 };
 
 const background: Record<SurfaceKind, string> = {
@@ -30,6 +34,7 @@ const background: Record<SurfaceKind, string> = {
   "basketball-court": "linear-gradient(180deg, #c9873f 0%, #dc9a52 55%, #c9873f 100%)",
   "hockey-pitch": "linear-gradient(180deg, #1c6e8c 0%, #22809f 55%, #1c6e8c 100%)",
   none: "linear-gradient(180deg, #1f7a3d 0%, #24893f 55%, #1f7a3d 100%)",
+  "rowing-boat": "linear-gradient(180deg, #0d4f73 0%, #12628e 55%, #0d4f73 100%)",
 };
 
 export function Pitch({ surface, children, className }: { surface: SurfaceKind; children: ReactNode; className?: string }) {
@@ -83,6 +88,13 @@ export function Pitch({ surface, children, className }: { surface: SurfaceKind; 
             {/* Shooting circles ("the D") at each end */}
             <path d="M 27 2 A 23 16 0 0 0 73 2" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.4" />
             <path d="M 27 98 A 23 16 0 0 1 73 98" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.4" />
+          </>
+        )}
+        {surface === "rowing-boat" && (
+          <>
+            {/* The boat's hull as a narrow lane, bow at the top, stroke/cox at the bottom (matches SlotAnchor's y-flip convention). */}
+            <line x1="50" y1="2" x2="50" y2="98" stroke="rgba(255,255,255,0.3)" strokeWidth="0.3" strokeDasharray="1.2,1.2" />
+            <path d="M 38 2 Q 50 -4 62 2 L 62 90 Q 62 97 50 99 Q 38 97 38 90 Z" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
           </>
         )}
       </svg>

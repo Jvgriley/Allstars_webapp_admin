@@ -10,6 +10,9 @@ import { useActionCentreTasks } from "../../services/actionCentreService";
 import { useFixtures, useTraining } from "../../services/sportService";
 import { useLiveMatch } from "../../services/liveService";
 import { useRankings } from "../../services/rankingsService";
+import { useCompetitions } from "../../services/competitionService";
+import { sportConfigs } from "../../domain/sportConfigs";
+import { Medal } from "lucide-react";
 
 const insightTarget: Record<InsightKind, PageId> = {
   OPPORTUNITY: "members",
@@ -19,7 +22,7 @@ const insightTarget: Record<InsightKind, PageId> = {
   RISK: "action-centre",
 };
 
-export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
+export function Dashboard({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: kpis = [] } = useKpis();
   const { data: revenueTrend = [] } = useRevenueTrend();
   const { data: insights = [] } = useInsights();
@@ -28,6 +31,7 @@ export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
   const { data: training = [] } = useTraining();
   const { data: liveMatch } = useLiveMatch();
   const { data: rankings = [] } = useRankings();
+  const { data: competitions = [] } = useCompetitions();
 
   if (!liveMatch) return <PageLoading />;
 
@@ -69,6 +73,27 @@ export function Dashboard({ navigate }: { navigate: (p: PageId) => void }) {
           </div>
         </Panel>
       </div>
+
+      {/* Sprint 5 — the Event Sports (Athletics/Swimming/Rowing/Cycling)
+          equivalent of "Upcoming fixtures" above: a genuinely different
+          entity (Competition, not Fixture — see sportConfigs.ts's
+          SportEvent module comment), so it's its own panel rather than
+          merged into the fixtures list. */}
+      <Panel title="Upcoming competitions" eyebrow="Event Sports" action={<Btn size="sm" variant="ghost" onClick={() => navigate("competitions")}>Competitions</Btn>}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {competitions.slice(0, 4).map((c) => (
+            <button key={c.id} onClick={() => navigate("competition-detail", c.id)} className="rounded-xl border border-border p-3 text-left hover:bg-muted">
+              <div className="flex items-center justify-between text-sm font-semibold text-[var(--sa-ink)]">
+                <span className="truncate">{c.name}</span>
+                <Medal className="size-4 shrink-0 text-[var(--sa-magenta)]" />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">{sportConfigs[c.sport].label} · {c.date} · {c.time}</div>
+              <div className="mt-2"><Pill tone="violet">{c.eventKeys.length} event{c.eventKeys.length === 1 ? "" : "s"}</Pill></div>
+            </button>
+          ))}
+          {competitions.length === 0 && <div className="col-span-full py-4 text-center text-sm text-muted-foreground">No competitions scheduled.</div>}
+        </div>
+      </Panel>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel title="Needs attention" eyebrow="Action Centre" action={<Btn size="sm" variant="ghost" onClick={() => navigate("action-centre")}>View all</Btn>}>
