@@ -1,6 +1,6 @@
 // Members, the roster they roll up into as teams/squads, and member-level trend data.
 import type { Member, MemberStatTrendPoint, Team } from "../domain/types";
-import type { PositionKey } from "../domain/sportConfigs";
+import type { PositionKey, SportKey } from "../domain/sportConfigs";
 import { useAsyncData } from "./useAsyncData";
 import { createStore, nextId } from "./store";
 
@@ -65,7 +65,132 @@ function seeded(i: number): Member {
   };
 }
 
-const seedMembers: Member[] = Array.from({ length: 32 }, (_, i) => seeded(i));
+// --- Sprint 4 — Olympic Multi-Sport Framework: real, believable seed data
+// for the four new demonstration sports (football's existing 32-member
+// seed above is untouched). Each sport gets its own club section, real
+// fictional names (not "Player 1"), a spread of availability states, and
+// real sport-scoped primary/secondary positions or roles so eligibility,
+// selection conflicts and bench/replacement behaviour are all genuinely
+// demonstrable — see Sprint 3's teamSheetService for how those are used.
+
+const sportFirstNames = ["Charlie", "Maya", "Ethan", "Priya", "Finn", "Zara", "Kai", "Lucy", "Marcus", "Nina", "Theo", "Aisha", "Josh", "Bella", "Ravi", "Chloe", "Dan", "Sana", "Ben", "Poppy"];
+const sportLastNames = ["Osei", "Carter", "Nguyen", "Fitzgerald", "Adeyemi", "Marsh", "Lindqvist", "Doyle", "Okafor", "Bianchi", "Sharma", "Whitfield", "Kowalski", "Devine", "Mensah", "Turner", "Farrell", "Iqbal", "Novak", "Gallagher"];
+
+function personName(seed: number, offset: number): string {
+  return `${sportFirstNames[(seed + offset) % sportFirstNames.length]} ${sportLastNames[(seed * 5 + offset) % sportLastNames.length]}`;
+}
+
+/** Same shape of variance as the football seeded() above — availability/attendance/participation/payments/status all vary by index so every sport has a genuine spread, not uniform mock rows. */
+function sportMember(i: number, opts: {
+  idPrefix: string;
+  sport: SportKey;
+  team: string;
+  ageGroup: string;
+  bucket: Member["position"];
+  primaryPosition: PositionKey;
+  secondaryPositions?: PositionKey[];
+}): Member {
+  const name = personName(i, opts.idPrefix.charCodeAt(0));
+  const attendance = 58 + ((i * 6) % 42);
+  const participation = 42 + ((i * 9) % 58);
+  const avail = i % 5 === 0 ? "red" : i % 3 === 0 ? "orange" : "green";
+  const pay = i % 7 === 0 ? "Overdue" : i % 4 === 0 ? "Due" : "Paid";
+  const status = participation < 55 ? "At risk" : attendance < 62 ? "At risk" : "Active";
+  return {
+    id: `${opts.idPrefix}${i + 1}`,
+    name,
+    team: opts.team,
+    role: i % 11 === 0 ? "Captain" : "Player",
+    ageGroup: opts.ageGroup,
+    membership: (i % 9 === 0 ? "Pending" : "Active") as Member["membership"],
+    availability: avail as Member["availability"],
+    attendance,
+    trainingHours: 18 + ((i * 4) % 80),
+    participation,
+    payments: pay as Member["payments"],
+    lastActive: i % 3 === 0 ? "Today" : `${(i % 9) + 1}d ago`,
+    status: status as Member["status"],
+    allstarsId: `AS-${(20000 + i).toString()}`,
+    position: opts.bucket,
+    sport: opts.sport,
+    primaryPosition: opts.primaryPosition,
+    secondaryPositions: opts.secondaryPositions,
+    squadNumber: i + 1,
+  };
+}
+
+// Basketball — Riverside Hawks. Two teams so Teams & Squads/Fixtures
+// filtering has more than one squad to show per sport, same as football.
+const basketballPrimaries: PositionKey[] = ["PG", "SG", "SF", "PF", "C"];
+const basketballSeed: Member[] = Array.from({ length: 14 }, (_, i) => {
+  const primary = basketballPrimaries[i % basketballPrimaries.length];
+  const secondary = i % 3 === 0 ? [basketballPrimaries[(i + 1) % basketballPrimaries.length]] : undefined;
+  return sportMember(i, {
+    idPrefix: "bb",
+    sport: "basketball",
+    team: i % 2 === 0 ? "Basketball Seniors" : "Basketball U18",
+    ageGroup: i % 2 === 0 ? "Senior" : "U18",
+    bucket: primary === "C" ? "Goalkeeper" : primary === "PG" || primary === "SG" ? "Midfielder" : "Forward",
+    primaryPosition: primary,
+    secondaryPositions: secondary,
+  });
+});
+
+// Rugby Sevens — Riverside Sevens. Squads of 12 in real Sevens, seeded a
+// little deeper here (16) so both the Starting Seven and 5 Replacements
+// have real depth/conflicts to choose from.
+const sevensPrimaries: PositionKey[] = ["P1", "HK7", "P2", "SH7", "FH7", "CE7", "WG7"];
+const rugbySevensSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const primary = sevensPrimaries[i % sevensPrimaries.length];
+  const secondary = i % 4 === 0 ? [sevensPrimaries[(i + 2) % sevensPrimaries.length]] : undefined;
+  return sportMember(i, {
+    idPrefix: "r7",
+    sport: "rugbySevens",
+    team: i % 2 === 0 ? "Sevens Firsts" : "Sevens Development",
+    ageGroup: i % 2 === 0 ? "Senior" : "U18",
+    bucket: primary === "P1" || primary === "HK7" || primary === "P2" ? "Defender" : primary === "SH7" || primary === "FH7" ? "Midfielder" : "Winger",
+    primaryPosition: primary,
+    secondaryPositions: secondary,
+  });
+});
+
+// Field Hockey — Riverside Hockey Club.
+const hockeyPrimaries: PositionKey[] = ["GK-H", "RB-H", "LB-H", "RH-H", "CH-H", "LH-H", "RW-H", "IR-H", "CF-H", "IL-H", "LW-H"];
+const hockeySeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const primary = hockeyPrimaries[(i === 0 ? 0 : i) % hockeyPrimaries.length];
+  const secondary = i % 4 === 1 ? [hockeyPrimaries[(i + 3) % hockeyPrimaries.length]] : undefined;
+  return sportMember(i, {
+    idPrefix: "hk",
+    sport: "hockey",
+    team: i % 2 === 0 ? "Hockey 1st XI" : "Hockey Ladies 1s",
+    ageGroup: "Senior",
+    bucket: primary === "GK-H" ? "Goalkeeper" : primary === "RB-H" || primary === "LB-H" ? "Defender" : primary === "RW-H" || primary === "LW-H" ? "Winger" : primary === "CF-H" || primary === "IR-H" || primary === "IL-H" ? "Forward" : "Midfielder",
+    primaryPosition: primary,
+    secondaryPositions: secondary,
+  });
+});
+
+// Cricket — Riverside CC. Role-based, not position-based: primaryPosition
+// here is a role (WK/BAT/BOWL/AR), the architectural point Sprint 4 proves
+// out end to end. Roughly a realistic XI's worth of role distribution —
+// mostly batters and bowlers, a couple of keepers, several all-rounders —
+// across two squads.
+const cricketRoleCycle: PositionKey[] = ["BAT", "BAT", "BAT", "BOWL", "BOWL", "BOWL", "AR", "AR", "WK", "BAT", "BOWL"];
+const cricketSeed: Member[] = Array.from({ length: 16 }, (_, i) => {
+  const primary = cricketRoleCycle[i % cricketRoleCycle.length];
+  const secondary = i % 5 === 0 ? (["AR"] as PositionKey[]) : undefined;
+  return sportMember(i, {
+    idPrefix: "cr",
+    sport: "cricket",
+    team: i % 2 === 0 ? "Cricket 1st XI" : "Cricket 2nd XI",
+    ageGroup: "Senior",
+    bucket: primary === "WK" ? "Goalkeeper" : primary === "BOWL" ? "Forward" : primary === "AR" ? "Midfielder" : "Defender",
+    primaryPosition: primary,
+    secondaryPositions: secondary,
+  });
+});
+
+const seedMembers: Member[] = [...Array.from({ length: 32 }, (_, i) => seeded(i)), ...basketballSeed, ...rugbySevensSeed, ...hockeySeed, ...cricketSeed];
 
 type MembersState = { members: Member[]; extraTeams: string[] };
 
@@ -86,7 +211,11 @@ function computeTeams(): Team[] {
   return Array.from(names).map((name) => {
     const roster = members.filter((m) => m.team === name);
     const attendance = roster.length ? Math.round(roster.reduce((a, m) => a + m.attendance, 0) / roster.length) : 0;
-    return { name, count: roster.length, attendance, roster };
+    // Sprint 4 — every member on a real squad shares one sport in this mock
+    // data, so the roster's own members.sport is authoritative; a brand
+    // new empty team (just created via createTeam()) defaults to football.
+    const sport = roster[0]?.sport ?? "football";
+    return { name, count: roster.length, attendance, roster, sport };
   });
 }
 

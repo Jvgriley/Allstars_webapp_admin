@@ -6,6 +6,7 @@ import { Outlet, NavLink } from "react-router";
 import { navSections } from "../nav";
 import { pagePath } from "../routing";
 import { useOrganisation } from "../../services/organisationService";
+import { SportSelector } from "./SportSelector";
 import { cx, Btn } from "./primitives";
 import { Toaster } from "./ui/sonner";
 
@@ -91,6 +92,9 @@ export function AppLayout() {
             <span className="hidden font-semibold sm:inline">{organisation?.name ?? "Loading…"}</span>
             <ChevronDown className="size-4 text-muted-foreground" />
           </button>
+
+          {/* Sprint 4 — Sport Selector: which sport this section of the club is currently working in. */}
+          <SportSelector />
 
           {/* Search */}
           <div className="relative ml-1 hidden max-w-md flex-1 md:block">

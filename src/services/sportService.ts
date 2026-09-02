@@ -8,6 +8,17 @@ const seedFixtures: Fixture[] = [
   { id: "f2", home: "Riverside U14", away: "City FC", date: "Sat 20 Aug", time: "10:30", comp: "Youth League", venue: "City Park", available: 12, pending: 6, unavailable: 3, sport: "football" },
   { id: "f3", home: "Women's First", away: "Falcons", date: "Sun 21 Aug", time: "13:00", comp: "Regional Cup", venue: "Riverside Sports Ground", available: 15, pending: 2, unavailable: 4, sport: "football" },
   { id: "f4", home: "Riverside RFC", away: "Ironbridge Vale", date: "Sun 21 Aug", time: "15:00", comp: "Regional Merit League", venue: "Riverside Sports Ground", available: 19, pending: 5, unavailable: 3, sport: "rugby" },
+  // Sprint 4 — Olympic Multi-Sport Framework demonstration fixtures. Two
+  // per sport so the Sport Selector + Fixtures/Availability filtering has
+  // more than a single example to switch between.
+  { id: "f5", home: "Basketball Seniors", away: "Meridian Ballers", date: "Fri 26 Aug", time: "19:00", comp: "Regional League", venue: "Riverside Sports Hall", available: 9, pending: 3, unavailable: 2, sport: "basketball" },
+  { id: "f6", home: "Basketball U18", away: "Northgate Academy", date: "Sat 27 Aug", time: "11:00", comp: "U18 League", venue: "Riverside Sports Hall", available: 8, pending: 2, unavailable: 2, sport: "basketball" },
+  { id: "f7", home: "Sevens Firsts", away: "Coastal Sevens", date: "Sat 27 Aug", time: "12:00", comp: "Sevens Series", venue: "Riverside Sports Ground", available: 10, pending: 4, unavailable: 2, sport: "rugbySevens" },
+  { id: "f8", home: "Sevens Development", away: "Ironbridge Sevens", date: "Sun 28 Aug", time: "14:00", comp: "Development Sevens", venue: "Riverside Sports Ground", available: 9, pending: 3, unavailable: 2, sport: "rugbySevens" },
+  { id: "f9", home: "Hockey 1st XI", away: "Willowmead HC", date: "Sat 27 Aug", time: "13:30", comp: "Regional Hockey League", venue: "Riverside Astro", available: 10, pending: 3, unavailable: 3, sport: "hockey" },
+  { id: "f10", home: "Hockey Ladies 1s", away: "Falcons HC", date: "Sun 28 Aug", time: "11:00", comp: "Ladies Regional League", venue: "Riverside Astro", available: 9, pending: 4, unavailable: 3, sport: "hockey" },
+  { id: "f11", home: "Cricket 1st XI", away: "Ashfield CC", date: "Sat 27 Aug", time: "11:00", comp: "Premier League Division 1", venue: "Riverside Cricket Ground", available: 11, pending: 3, unavailable: 2, sport: "cricket" },
+  { id: "f12", home: "Cricket 2nd XI", away: "Meridian CC", date: "Sun 28 Aug", time: "11:00", comp: "Division 3", venue: "Riverside Cricket Ground", available: 10, pending: 3, unavailable: 3, sport: "cricket" },
 ];
 
 const training: TrainingSession[] = [

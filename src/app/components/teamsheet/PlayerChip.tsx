@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Crown, X } from "lucide-react";
 import type { Member } from "../../../domain/types";
 import type { FormationSlot, SportConfig } from "../../../domain/sportConfigs";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
@@ -90,23 +90,36 @@ export function BenchRow({
   onRemove,
   onClick,
   readOnly,
+  isCaptain,
+  onToggleCaptain,
 }: {
   member: Member;
   positionLabel?: string;
   onRemove?: () => void;
   onClick?: () => void;
   readOnly?: boolean;
+  /** Sprint 4 — generic captaincy display/toggle, only passed by callers whose SportConfig.supportsCaptain is true (Rugby Sevens today; football/basketball/hockey don't pass these, so they render exactly as in Sprint 3). */
+  isCaptain?: boolean;
+  onToggleCaptain?: () => void;
 }) {
   return (
     <div className={cx("flex items-center gap-2.5 rounded-xl border border-border p-2", !readOnly && "hover:bg-muted")}>
       <button onClick={onClick} disabled={readOnly} className={cx("flex flex-1 items-center gap-2.5 text-left", readOnly && "cursor-default")}>
         <PlayerAvatar member={member} size={32} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-[var(--sa-ink)]">{member.name}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-[var(--sa-ink)]">{member.name}</span>
+            {isCaptain && <span title="Captain" className="inline-flex items-center gap-0.5 rounded-full bg-[var(--sa-magenta)]/10 px-1.5 py-0.5 text-[10px] font-bold text-[var(--sa-magenta)]"><Crown className="size-3" /> C</span>}
+          </div>
           {positionLabel && <div className="text-xs text-muted-foreground">{positionLabel}</div>}
         </div>
         {member.squadNumber != null && <span className="text-xs font-semibold text-muted-foreground">#{member.squadNumber}</span>}
       </button>
+      {!readOnly && onToggleCaptain && (
+        <button onClick={onToggleCaptain} title={isCaptain ? "Remove captain" : "Make captain"} className={cx("rounded p-1 hover:bg-white", isCaptain ? "text-[var(--sa-magenta)]" : "text-muted-foreground")}>
+          <Crown className="size-3.5" />
+        </button>
+      )}
       {!readOnly && onRemove && (
         <button onClick={onRemove} title="Remove from bench" className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-rose-600">
           <X className="size-3.5" />

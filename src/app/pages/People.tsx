@@ -7,7 +7,10 @@ import { MemberFormModal } from "../components/MemberFormModal";
 import { AreaTrend, Bars } from "../components/Charts";
 import type { PageId } from "../nav";
 import type { Member } from "../../domain/types";
+import type { SportKey } from "../../domain/sportConfigs";
+import { sportConfigs } from "../../domain/sportConfigs";
 import { membersService, useMembers, useMember, useMemberStatTrend, useTeams } from "../../services/membersService";
+import { selectableSports, useCurrentSport } from "../../services/sportContext";
 
 const membershipTone = (m: Member["membership"]) => (m === "Active" ? "green" : m === "Pending" ? "orange" : "red");
 const payTone = (p: Member["payments"]) => (p === "Paid" ? "green" : p === "Due" ? "orange" : "red");
@@ -17,25 +20,34 @@ type SortKey = "name" | "attendance" | "participation";
 
 export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: members } = useMembers();
+  const currentSport = useCurrentSport();
   const [q, setQ] = useState("");
   const [team, setTeam] = useState("All");
+  // Sprint 4 — defaults to the Sport Selector's current sport but "All"
+  // stays reachable, same non-destructive pattern as Fixtures' sport chips.
+  const [sportFilter, setSportFilter] = useState<SportKey | "all">(currentSport);
   const [selected, setSelected] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Member | undefined>(undefined);
 
-  const teamNames = useMemo(() => ["All", ...Array.from(new Set((members ?? []).map((m) => m.team)))], [members]);
+  const sportScoped = useMemo(
+    () => (members ?? []).filter((m) => sportFilter === "all" || (m.sport ?? "football") === sportFilter),
+    [members, sportFilter],
+  );
+  const teamNames = useMemo(() => ["All", ...Array.from(new Set(sportScoped.map((m) => m.team)))], [sportScoped]);
   const filtered = useMemo(() => {
-    const base = (members ?? []).filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase()));
+    const base = sportScoped.filter((m) => (team === "All" || m.team === team) && m.name.toLowerCase().includes(q.toLowerCase()));
     const sorted = [...base].sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name) * sortDir;
       return (a[sort] - b[sort]) * sortDir;
     });
     return sorted;
-  }, [members, q, team, sort, sortDir]);
+  }, [sportScoped, q, team, sort, sortDir]);
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const changeSport = (next: SportKey | "all") => { setSportFilter(next); setTeam("All"); };
   const toggleSort = (key: SortKey) => {
     if (sort === key) setSortDir((d) => (d === 1 ? -1 : 1));
     else { setSort(key); setSortDir(1); }
@@ -59,6 +71,13 @@ export function Members({ navigate }: { navigate: (p: PageId, arg?: string) => v
           </>
         }
       />
+
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => changeSport("all")} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === "all" ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>All sports</button>
+        {selectableSports.map((s) => (
+          <button key={s} onClick={() => changeSport(s)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === s ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{sportConfigs[s].label}</button>
+        ))}
+      </div>
 
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -185,7 +204,7 @@ export function MemberProfile({ memberId, navigate }: { memberId?: string; navig
           <div className="flex-1">
             <h1 className="font-display text-3xl text-[var(--sa-ink)]">{m.name}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span>Riverside FC</span>·<span>{m.team}</span>·<span>Football · {m.position}</span>·<span>{m.role}</span>
+              <span>Riverside FC</span>·<span>{m.team}</span>·<span>{sportConfigs[m.sport ?? "football"].label} · {m.position}</span>·<span>{m.role}</span>
               <Pill tone={membershipTone(m.membership)}>{m.membership}</Pill>
               <Pill tone="muted">{m.allstarsId}</Pill>
             </div>
@@ -282,12 +301,15 @@ export function MemberStats({ memberId, navigate }: { memberId?: string; navigat
 
 export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: teams } = useTeams();
+  const currentSport = useCurrentSport();
+  const [sportFilter, setSportFilter] = useState<SportKey | "all">(currentSport);
   const [drawerTeam, setDrawerTeam] = useState<string | null>(null);
   const [newTeamOpen, setNewTeamOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
 
   if (!teams) return <PageLoading />;
 
+  const filteredTeams = sportFilter === "all" ? teams : teams.filter((t) => (t.sport ?? "football") === sportFilter);
   const active = teams.find((t) => t.name === drawerTeam);
 
   const createTeam = () => {
@@ -309,8 +331,14 @@ export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => voi
         subtitle="Every squad rolls up into club analytics and rankings."
         actions={<Btn onClick={() => setNewTeamOpen(true)}><Plus className="size-4" /> New team</Btn>}
       />
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => setSportFilter("all")} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === "all" ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>All sports</button>
+        {selectableSports.map((s) => (
+          <button key={s} onClick={() => setSportFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === s ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{sportConfigs[s].label}</button>
+        ))}
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {teams.map((t) => (
+        {filteredTeams.map((t) => (
           <Panel key={t.name} title={t.name} eyebrow={`${t.count} members`}>
             <div className="mb-3 flex items-center justify-between text-sm"><span className="text-muted-foreground">Avg attendance</span><span className="font-display text-2xl text-[var(--sa-ink)]">{t.attendance}%</span></div>
             <ProgressBar value={t.attendance} />
@@ -324,6 +352,7 @@ export function Teams({ navigate }: { navigate: (p: PageId, arg?: string) => voi
             </div>
           </Panel>
         ))}
+        {filteredTeams.length === 0 && <div className="col-span-full py-8 text-center text-sm text-muted-foreground">No teams for this sport yet.</div>}
       </div>
 
       <Modal

@@ -64,7 +64,9 @@ export type Member = {
   allstarsId: string;
   /** Broad, sport-agnostic position bucket (existing since Sprint 1/2) — still used for the People/Members screens. */
   position?: string;
-  /** Sport-scoped primary position key (see domain/sportConfigs.ts) — used by Team Sheet selection. */
+  /** Sprint 4 — which sport this member is registered to play (drives Members/Teams/Fixtures filtering by the global Sport Selector). Undefined is treated as "football" everywhere it's read, so every Sprint 1–3 member (seeded before this field existed) keeps working unchanged. */
+  sport?: SportKey;
+  /** Sport-scoped primary position key (see domain/sportConfigs.ts) — used by Team Sheet selection. For cricket this is a role (WK/BAT/BOWL/AR), not a formation position — see sportConfigs.ts's module comment on cricket. */
   primaryPosition?: PositionKey;
   /** Additional sport-scoped positions this player can be selected in. */
   secondaryPositions?: PositionKey[];
@@ -78,6 +80,8 @@ export type Team = {
   count: number;
   attendance: number;
   roster: Member[];
+  /** Sprint 4 — derived from the roster (defaults to "football" for an empty/legacy team) so Teams & Squads can filter by the global Sport Selector. */
+  sport?: SportKey;
 };
 
 export type Ranking = {
@@ -359,6 +363,9 @@ export type TeamSelection = {
   status: SelectionStatus;
   publishedAt?: string;
   updatedAt?: string;
+  /** Sprint 4 — generic captaincy, gated by SportConfig.supportsCaptain/supportsViceCaptain (Rugby Sevens and Cricket today; not football/basketball/hockey, matching the brief's "where appropriate"). Must be a selected starter — see teamSheetService.setCaptain/setViceCaptain. */
+  captainId?: string;
+  viceCaptainId?: string;
 };
 
 /** A candidate's eligibility for the position(s) being filled — distinct from being finally selected. See sportConfigs.ts's fallbackEligibility for how this is computed when a member has no sport-specific position set. */

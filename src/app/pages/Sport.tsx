@@ -5,11 +5,13 @@ import { PageHeader, Panel, Btn, Pill, Avatar, AvailabilityDot, ProgressBar, Sta
 import { Modal } from "../components/Modal";
 import type { PageId } from "../nav";
 import type { AvailabilityState, Fixture } from "../../domain/types";
-import { sportConfigs } from "../../domain/sportConfigs";
+import { sportConfigs, type SportKey } from "../../domain/sportConfigs";
+import type { Member } from "../../domain/types";
 import { sportService, useFixtures, useChallenges, useChallengeLeaderboard, useFixtureAvailability } from "../../services/sportService";
 import { useMembers } from "../../services/membersService";
+import { rosterSportFor, selectableSports, useCurrentSport } from "../../services/sportContext";
 
-function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOpenChange: (o: boolean) => void; fixture?: Fixture }) {
+function FixtureFormModal({ open, onOpenChange, fixture, defaultSport }: { open: boolean; onOpenChange: (o: boolean) => void; fixture?: Fixture; defaultSport?: SportKey }) {
   const isEdit = !!fixture;
   const [home, setHome] = useState(fixture?.home ?? "Riverside FC");
   const [away, setAway] = useState(fixture?.away ?? "");
@@ -17,7 +19,9 @@ function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOp
   const [time, setTime] = useState(fixture?.time ?? "");
   const [comp, setComp] = useState(fixture?.comp ?? "");
   const [venue, setVenue] = useState(fixture?.venue ?? "Riverside Sports Ground");
-  const [sport, setSport] = useState<Fixture["sport"]>(fixture?.sport ?? "football");
+  // Sprint 4 — a brand-new fixture defaults to whichever sport the Sport
+  // Selector is currently on, rather than always assuming football.
+  const [sport, setSport] = useState<Fixture["sport"]>(fixture?.sport ?? defaultSport ?? "football");
 
   const save = () => {
     if (!away.trim() || !date.trim() || !time.trim()) {
@@ -62,16 +66,30 @@ function FixtureFormModal({ open, onOpenChange, fixture }: { open: boolean; onOp
 
 export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: fixtures } = useFixtures();
+  const currentSport = useCurrentSport();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Fixture | undefined>(undefined);
+  // Sprint 4 — defaults to whichever sport the Sport Selector is on, but
+  // "All" stays one click away so nothing (including the Sprint 3 Rugby
+  // Union demo fixture, which isn't one of the five selectable sports) is
+  // ever hidden without a way back to it.
+  const [sportFilter, setSportFilter] = useState<SportKey | "all">(currentSport);
 
   if (!fixtures) return <PageLoading />;
+
+  const filtered = sportFilter === "all" ? fixtures : fixtures.filter((f) => (f.sport ?? "football") === sportFilter);
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Sport" title="Fixtures" subtitle="Every fixture connects to availability, calendar, car pooling and live streaming." actions={<Btn onClick={() => { setEditing(undefined); setFormOpen(true); }}><Plus className="size-4" /> New fixture</Btn>} />
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => setSportFilter("all")} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === "all" ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>All sports</button>
+        {selectableSports.map((s) => (
+          <button key={s} onClick={() => setSportFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${sportFilter === s ? "sa-gradient text-white" : "border border-border bg-card hover:bg-muted"}`}>{sportConfigs[s].label}</button>
+        ))}
+      </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {fixtures.map((f) => (
+        {filtered.map((f) => (
           <Panel key={f.id} title={`${f.home} vs ${f.away}`} eyebrow={f.comp} action={<button title="Edit fixture" onClick={() => { setEditing(f); setFormOpen(true); }} className="rounded p-1 hover:bg-muted"><Pencil className="size-3.5 text-muted-foreground" /></button>}>
             <div className="space-y-1.5 text-sm text-muted-foreground">
               <div className="flex items-center gap-2"><Clock className="size-4" /> {f.date} · {f.time}</div>
@@ -86,8 +104,9 @@ export function Fixtures({ navigate }: { navigate: (p: PageId, arg?: string) => 
             </div>
           </Panel>
         ))}
+        {filtered.length === 0 && <div className="col-span-full py-8 text-center text-sm text-muted-foreground">No fixtures for this sport yet.</div>}
       </div>
-      <FixtureFormModal open={formOpen} onOpenChange={setFormOpen} fixture={editing} />
+      <FixtureFormModal open={formOpen} onOpenChange={setFormOpen} fixture={editing} defaultSport={currentSport} />
     </div>
   );
 }
@@ -97,14 +116,18 @@ const availLabel: Record<AvailabilityState, string> = { green: "Available", oran
 export function Availability({ navigate }: { navigate: (p: PageId, arg?: string) => void }) {
   const { data: fixtures } = useFixtures();
   const { data: members } = useMembers();
+  const currentSport = useCurrentSport();
   useFixtureAvailability(); // subscribe so per-member responses re-render live
   const [fixtureId, setFixtureId] = useState<string | undefined>(undefined);
 
   if (!fixtures || !members) return <PageLoading />;
   if (fixtures.length === 0) return <PageLoading />;
 
-  const f = fixtures.find((x) => x.id === fixtureId) ?? fixtures[0];
-  const roster = members.slice(0, 18);
+  // Sprint 4 — every fixture stays selectable in the dropdown below (never
+  // hidden), but the default selection follows the Sport Selector so
+  // switching sport genuinely loads the right squad/context, per the brief.
+  const f = fixtures.find((x) => x.id === fixtureId) ?? fixtures.find((x) => (x.sport ?? "football") === currentSport) ?? fixtures[0];
+  const roster = members.filter((m) => (m.sport ?? "football") === rosterSportFor(f.sport ?? "football")).slice(0, 18);
   const responses = roster.map((m) => sportService.getAvailability(f.id, m.id, m.availability));
   const counts = { green: responses.filter((r) => r === "green").length, orange: responses.filter((r) => r === "orange").length, red: responses.filter((r) => r === "red").length };
 
@@ -112,6 +135,10 @@ export function Availability({ navigate }: { navigate: (p: PageId, arg?: string)
     sportService.setAvailability(f.id, memberId, state);
     toast.success(`${name} marked ${availLabel[state].toLowerCase()} for ${f.home} vs ${f.away}.`);
   };
+  // Sprint 4 — show the member's real sport-scoped position/role label
+  // (e.g. "Wicketkeeper", not the generic cross-sport "Goalkeeper" bucket
+  // that maps onto it internally) wherever this sport has one recorded.
+  const positionLabel = (m: Member) => sportConfigs[f.sport ?? "football"].positions.find((p) => p.key === m.primaryPosition)?.label ?? m.position;
 
   return (
     <div className="space-y-6">
@@ -161,7 +188,7 @@ export function Availability({ navigate }: { navigate: (p: PageId, arg?: string)
             return (
               <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border p-2.5">
                 <Avatar name={m.name} size={32} />
-                <div className="flex-1"><div className="text-sm font-semibold text-[var(--sa-ink)]">{m.name}</div><div className="text-xs text-muted-foreground">{m.position}</div></div>
+                <div className="flex-1"><div className="text-sm font-semibold text-[var(--sa-ink)]">{m.name}</div><div className="text-xs text-muted-foreground">{positionLabel(m)}</div></div>
                 <div className="flex gap-1">
                   {(["green", "orange", "red"] as AvailabilityState[]).map((s) => (
                     <button
