@@ -1,85 +1,197 @@
-# Sporting Allstars Web Admin — Sprint 5 → Sprint 6: Integration Roadmap
+# Sporting Allstars Web Admin — Backend & Database Integration Roadmap
 
-**Purpose of this document:** a clear, honest account of what's actually been built (Sprints 1–5), and a concrete plan for Sprint 6 — moving from a frontend-only prototype to a platform that reads and writes real data through the existing Laravel backend and RDS database. Written to be handed to the team that owns that backend and native app, as well as to plan Sprint 6 itself.
+**Purpose:** a single document for the team that owns the existing native app, its Laravel backend, and the RDS database — covering where the web admin platform stands today, where it needs to end up, and everything required to connect and launch it against the real system. This supersedes the separate `SPRINT_3/4/5_BACKEND_REQUIREMENTS.md` files and the earlier Sprint 6 roadmap draft — their content is folded in here so there's one place to work from.
 
-**The one-sentence summary:** everything described below — every screen, every sport, every entry list, every insight card — is still running entirely on mock data held in the browser. Nothing in this app has ever made a network call to a real backend, and there is no login. Sprint 6 is where that changes.
-
----
-
-## Part 1 — What's done (Sprints 1–5)
-
-### Sprint 1 — Foundation
-Turned a static Figma Make export into a real, if still mock-data-only, single-page app: real client-side routing (every screen has a shareable URL, deep links and back/forward work), a domain-types-plus-services layer (one `src/services/*.ts` module per domain area — Members, Fixtures, Finance, and so on — each exposing `Promise`-returning read functions and a React hook, e.g. `useMembers()`), strict TypeScript wired into the build (`tsc --noEmit` fails the build on a type error), removed a large amount of dead/unused dependency weight (a second, entirely unused UI framework), and general repo hygiene. Merged to `main`.
-
-### Sprint 2 — Functional Prototype
-Made the app genuinely interactive within the browser: a small generic reactive store (`src/services/store.ts`, built on `useSyncExternalStore` + `sessionStorage`) sits behind most services now, so actions like adding a member, editing a fixture, logging challenge progress, or approving a Spaces post actually change what's on screen and persist for that browser session (not across devices, not across a cleared session — there is still no server). Every domain area gained real add/edit/toggle interactions behind this pattern. Merged to `main`.
-
-### Sprint 3 — Team Selection & Team Sheets
-The first genuinely complex feature: a full Availability → Team Builder → Published Team Sheet workflow, built on a config-driven `SportConfig` registry (`src/domain/sportConfigs.ts`) rather than anything sport-specific — football and Rugby Union both run through identical components, proving the architecture before a third sport was ever added. Introduced position eligibility, availability-aware player selection, captaincy-shaped groundwork, deterministic "Allstars Intelligence" insight cards, and a dependency-free SVG export for a downloadable team sheet graphic. Merged to `main`.
-
-### Sprint 4 — Olympic Multi-Sport Framework
-Extended the Sprint 3 architecture to Basketball, Rugby Sevens, Field Hockey and Cricket — five team sports total, all sharing one `TeamSheetPage`/`Pitch`/`SlotChip`/`teamSheetService` implementation, with Cricket proving out a second selection shape (`role`-based batting order, no surface coordinates, alongside the original `formation`-based one). Added a global Sport Selector, sport-scoped rosters, generic captain/vice-captain support, and per-sport demo data. Merged to `main`.
-
-### Sprint 5 — Olympic Event Sports, Athlete Entry & Results Engine
-Added Athletics, Swimming, Rowing and Cycling — sports that don't fit "place a player in a formation," so this sprint activated a third selection shape (`event`) and a new `Sport → Competition → Event → Entry` workflow, distinct from the Fixture/Team Sheet flow every other sport uses. Individual events (100m, freestyle strokes, Road Race) get a capped entry-list flow; relay legs and rowing crews reuse the Sprint 3/4 Team Selection machinery unchanged via a synthetic per-event configuration, rather than inventing a second selection system. Added a results engine (recorded performances, personal bests, per-event rankings). Complete and verified locally on branch `sprint-5-event-sports` — **not yet pushed or merged**, awaiting your review.
-
-### What this adds up to
-Five sprints in, this is a large, coherent, well-architected frontend covering people/teams, nine sports' worth of selection and entry workflows, availability, results, analytics, and every other screen in the original product brief (finance, live streaming, content, commercial, admin — see the Sprint 1 technical audit for the full 29-screen inventory). It is **still, entirely, a frontend prototype.** Every number on every screen comes from seeded mock data held in each browser tab's memory/`sessionStorage`. There is no login, no user, no organisation, no permission boundary that's real — the "JR" avatar in the header is a hardcoded string. Nothing has ever been read from or written to the real Laravel backend or the RDS database. That's the honest starting line for Sprint 6.
+**The one-sentence version:** the web app is a complete, well-architected frontend covering people, nine sports' worth of team and event selection, results, analytics, and every other screen in the product brief — and every byte of it is still mock data in the browser. There is no login, no API call, and no shared data with the native app yet. This document is the path from that to a real, integrated, launched product.
 
 ---
 
-## Part 2 — What "integration" actually means for this codebase
+## 1. Where we are today
 
-This matters because the answer isn't uniform across the app — some of it is a near-trivial swap, some of it is real new engineering. Two genuinely different situations exist side by side:
+Five sprints in, all merged (or, for Sprint 5, in final review) to `main`:
 
-**The read side is already shaped for this, on purpose.** Every "list X" / "get X" call a page uses (`useMembers()`, `useFixtures()`, `useCompetitions()`, `useResults()`, and so on) already returns a `Promise` and is consumed through one shared hook (`useAsyncData`). Today that promise resolves instantly from an in-memory seed; swapping the inside of, say, `membersService.listMembers()` for a real `fetch('/api/members')` call requires **no change anywhere else** — not in the page component, not in the hook, not in any other service. This was deliberately built this way from Sprint 1 onward, specifically so this moment wouldn't require touching every screen.
+- **Sprint 1 — Foundation.** Real client-side routing, a domain-types-plus-services layer (one `src/services/*.ts` module per domain, each exposing `Promise`-returning reads and a hook like `useMembers()`), strict TypeScript wired into the build, repo hygiene.
+- **Sprint 2 — Functional Prototype.** A reactive store (`sessionStorage`-backed) behind most services, so actions like adding a member or logging challenge progress genuinely change the screen and persist for that browser session — but only that session, on that device.
+- **Sprint 3 — Team Selection & Team Sheets.** A full Availability → Team Builder → Published Team Sheet workflow, built on a config-driven `SportConfig` registry rather than anything sport-specific.
+- **Sprint 4 — Olympic Multi-Sport Framework.** Extended to five team sports total (football, rugby union, basketball, rugby sevens, hockey, cricket), with cricket proving a second selection shape (role-based batting order, no coordinates) alongside the original formation-based one. Added captaincy.
+- **Sprint 5 — Olympic Event Sports.** Added athletics, swimming, rowing and cycling — sports that don't fit "place a player in a formation" — via a third selection shape and a new Competition → Event → Entry → Result workflow. Relay legs and crew boats reuse the Sprint 3/4 selection machinery rather than inventing something new.
 
-**The write/mutation side is not a free swap, and there's more of it than the read side by volume.** Everything built across Sprints 2–5 that *changes* something — assigning a player to a slot, publishing a team sheet, toggling availability, entering an athlete, recording a result — is a synchronous, void-returning function call straight into the local `sessionStorage`-backed store, called directly inside render and click handlers, not through the async/Promise pattern the read side uses. That was the right call for a fast, offline-capable prototype, but it means three real pieces of new work land in Sprint 6, not just plumbing:
+**What that adds up to, honestly:** a large, coherent frontend — 29 screens, nine sports, people/teams/fixtures/availability/selection/entries/results/analytics — that has never made a single network call. Every number on every screen comes from a hand-seeded mock file held in browser memory. There is no login (the "JR" avatar in the header is a hardcoded string), no organisation switching that does anything, no permission boundary that's real, and nothing typed into this app has ever reached the native app's database. That's the honest starting line.
 
-1. Every one of those mutation functions needs to become a real async request (fire a `POST`/`PUT`/`PATCH`, wait for a response), which the UI currently has no loading/error state built around at all — no spinner on "Publish," no "this failed, try again."
-2. Because state currently lives in each browser tab's own `sessionStorage`, there is no existing concept of two people editing the same thing at once. A real backend introduces that question immediately (two team managers open the same Team Sheet — what happens?), and the frontend doesn't have an answer built in yet. This needs an explicit decision (optimistic updates with conflict warnings, real-time sync, simple last-write-wins, etc.) before write-integration starts, not discovered partway through it.
-3. There is no auth or permissions layer anywhere in the app. Every screen and every mutation currently assumes it's you, with full access to everything. That has to exist before *any* real write against production data is safe to ship.
-
----
-
-## Part 3 — What's needed from the backend/native app team before Sprint 6 can really start
-
-None of this blocks starting Sprint 6's *planning* or its auth-scaffolding work — but real data integration (Part 4, Phase C onward) is gated on getting this from whoever owns the Laravel backend and the RDS database:
-
-1. **The actual authentication mechanism.** You mentioned you'll find this out — this is the single most important unknown. Specifically: is it Laravel Sanctum (cookie/session-based, or token-based for the native app), Passport (full OAuth2), or something custom? Same-domain or would this web app call it cross-origin (changes CORS/cookie handling)? Does a token refresh, or does it just expire and force re-login? How does the native app currently log in — that flow is very likely what this web app needs to plug into, not a separate one.
-
-2. **API documentation, or direct read access to the Laravel routes/controllers.** At minimum for: users/auth, members, teams/squads, fixtures, availability — the entities every other domain in this app references. An OpenAPI/Swagger spec is ideal; failing that, the actual route files and Eloquent models are just as useful and probably faster to produce than writing a spec from scratch.
-
-3. **The real database schema — migration files, or a schema dump, from the RDS database.** For a Laravel app this is usually the fastest, most unambiguous way to see the real data model (table names, columns, types, foreign keys) — more concrete than a hand-written API doc, and it directly answers the next question:
-
-4. **Whether the native backend already models anything like Sport / Competition / Event / Entry / Result at all**, or whether it's currently football/team-sport-only. This is the single biggest open question Sprint 5 raises: if Athletics/Swimming/Rowing/Cycling and their competition/entry/results concepts don't exist in the real schema yet, that's new backend schema and migration work on their side, not just "expose an existing endpoint" — worth knowing early so it can be scoped and sequenced realistically, rather than discovered mid-integration.
-
-5. **A staging/sandbox environment and a scoped, non-production API credential** for this app to develop and test against.
-
-6. **The role/permission model** — what roles exist today for admin-side users, and how access is actually scoped (a club admin vs a team manager vs a coach). This app's screens currently show everything to everyone; that needs to map onto whatever the real system already enforces.
-
-7. **How organisation/club/team hierarchy and multi-tenancy work in the real system** — the product brief describes a Governing Body → Region → League → Club → Team → Member rollup; this app needs to map onto whatever structure actually exists rather than assuming its own.
-
-8. **Rate limits, CORS policy, and API versioning conventions**, so the web app respects them from day one.
-
-9. **A named technical point of contact** for questions that come up once integration work starts.
-
-Every `SPRINT_3/4/5_BACKEND_REQUIREMENTS.md` document already sitting (untracked) in this repo's root was written specifically to make handing this list over easier — each one describes, per feature area, what shape of data the frontend needs, classified against what's likely to already exist (EXISTING / EXPOSE / EXTEND / NEW / UNKNOWN in the Sprint 5 doc). Worth sending those three files to the backend team directly rather than re-deriving their contents in conversation.
+The one thing worth stressing to a backend engineer meeting this codebase for the first time: **it was deliberately built this way.** Every read in the app already goes through a service function returning a `Promise` (`membersService.listMembers()`, `competitionService.listCompetitions()`, and so on), consumed through one shared data-fetching hook. That seam exists specifically so that connecting a real backend is, for reads, a change inside those service functions only — not a rewrite of 13 page files. See section 3.
 
 ---
 
-## Part 4 — Proposed Sprint 6 phases
+## 2. Where we're taking this
 
-**Phase A — Handover & environment.** Get the answers in Part 3. Stand up whatever local/staging config (`.env`, API base URL) this app needs to talk to a real environment. Zero risk to the current prototype — pure setup.
+The destination is not "a second product with its own data." It's a second interface onto the *same* Sporting Allstars ecosystem the native app already runs on:
 
-**Phase B — Real authentication.** Build the login screen, wire it to whatever mechanism Phase A reveals, add token/session storage and attach it to outgoing requests, add route guards that redirect to login when unauthenticated, add logout, add global handling for an expired/401 session. This is genuinely new work (nothing here today), and it's the one piece every subsequent phase depends on.
+- The web app and the native app read and write through the **same** Laravel backend and the **same** RDS database — no parallel data store, no second user table, no second auth system.
+- A club admin managing a team sheet in the web app and a coach checking availability in the native app are looking at the same live data, not two copies of it.
+- Login on the web app is the same identity and (as far as practical) the same authentication mechanism the native app already uses — not a bolted-on second login system.
+- Everything currently faked in this prototype (members, teams, fixtures, availability, selections, competitions, entries, results, permissions) becomes real, sourced from the backend you already run.
 
-**Phase C — Read-side integration, domain by domain, highest-value first.** Swap mock implementations for real API calls behind the existing service functions — the "free" seam described in Part 2. Suggested order, each a natural extension of the last: Members/Teams → Fixtures/Availability → Team Selections/Team Sheets → the multi-sport config layer (Sprint 4) → Competitions/Events/Entries (Sprint 5) → Results/Rankings. Everything else in the app (Analytics, Dashboard, Intelligence) is derived from these, so they follow naturally once the underlying entities are real.
+Getting there is a joint job: your team knows the real schema and auth mechanism; ours has already shaped the entire frontend around a seam designed to make slotting a real API in additive rather than a rewrite. Section 4 is where those two things meet.
 
-**Phase D — Write-side integration.** Domain by domain, following the same order as Phase C: convert each synchronous mutation (assign a player, toggle availability, publish, enter an athlete, record a result) into a real async request with proper loading/error/optimistic-update handling. This is where the concurrency question from Part 2 needs a real, decided answer — worth resolving as a design decision before this phase starts, not per-screen as it's discovered.
+---
 
-**Phase E — Permissions & multi-tenancy.** Wire the role/organisation model from Phase A into route guards and conditional UI, replacing the currently-illustrative "Role Dashboards" page with something real.
+## 3. The technical integration model — read side vs. write side
 
-**Phase F — Reconciliation pass on Sprint 4/5's invented shapes.** This app's sport/position/formation/event keys (e.g. `"4x100m-relay"`, `"coxless-pair"`, `SelectionMode: "role"`) were designed against the *product brief*, not against the real schema, because the real schema wasn't available. Once Phase A's answers are in, this is a dedicated pass to reconcile the two — likely a thin mapping layer in each service's real implementation, translating between whatever the backend actually returns and the UI-shaped types this app already expects, rather than a rewrite of the frontend types themselves (the whole point of the domain-types layer from Sprint 1 is to make that possible).
+This distinction matters because the two halves of the app are not equally far from "done," and it changes how Sprint 6 should be sequenced.
 
-Phases C and D can run sport-by-sport rather than strictly domain-by-domain if that's a better fit for how the backend team wants to sequence their own schema work — e.g., ship real Members/Fixtures/Football first end-to-end, then extend outward, rather than "read for everything" before "write for anything."
+**Reads are close to free.** `useMembers()`, `useFixtures()`, `useCompetitions()`, `useResults()` — every list/get call in the app already returns a `Promise` and flows through one hook. Today that promise resolves instantly from an in-memory seed. Pointing `membersService.listMembers()` at a real `fetch('/api/members')` call requires no change anywhere else — not the page, not the hook, not any other service. This was built this way from Sprint 1 specifically for this moment.
+
+**Writes are real, new engineering — and there's more of them by volume than reads.** Everything that *changes* something (assigning a player to a slot, publishing a team sheet, toggling availability, entering an athlete, recording a result) is currently a synchronous function writing straight into `sessionStorage`, called directly from a click handler — not the async pattern the read side uses. Converting this is three genuinely new pieces of work, not plumbing:
+
+1. Every mutation becomes a real async request (`POST`/`PUT`/`PATCH`) that can be slow or fail — and the UI currently has zero loading/error affordance built for that (no spinner on "Publish," no "this failed, try again").
+2. There's currently no concept of two people editing the same thing at once, because state lives in one browser tab's `sessionStorage`. A real backend surfaces that immediately — two team managers open the same Team Sheet, what happens? — and needs a decided answer (optimistic updates with conflict warnings, real-time sync, or simple last-write-wins) before write integration starts, not discovered mid-build.
+3. There is no auth or permissions layer anywhere yet. Every screen and every mutation currently assumes full access. That has to exist before any real write against production data is safe to ship — see section 5.
+
+---
+
+## 4. What we need from the backend and RDS, by domain
+
+Each area below is classified the way we've been flagging it internally, so you can tell at a glance what's likely trivial versus what might be genuinely new work on your side:
+
+- **EXISTING** — plausibly already modelled, in some form, in the native app's backend.
+- **EXPOSE** — likely already there server-side; we just need it surfaced via an endpoint we can call.
+- **EXTEND** — an existing entity needs new fields to carry what the web app needs.
+- **NEW** — no native-app equivalent that we're aware of; this is new schema/work.
+- **UNKNOWN** — can't classify without seeing the real schema; needs a conversation.
+
+None of this is a request to build it all before Sprint 6 starts — it's a map of what the frontend touches, for you to compare against what already exists and tell us where the real gaps are.
+
+### 4.1 Auth / User — see section 5 in full
+A signed-in user's identity (name, avatar, role/permission set), which organisation(s) they can access and which is "current," and session/token handling matching whatever the native app already does.
+
+### 4.2 Organisation / Club — **UNKNOWN** (multi-tenancy)
+Current org name/plan/rank/participation score, shown in the top bar. The product brief describes a Governing Body → Region → League → Club → Team → Member rollup; we need to know how (or whether) that hierarchy is real in the existing system, and whether one admin user can genuinely belong to more than one club — that shapes whether every resource below needs an explicit org-scoping parameter.
+
+### 4.3 Members — **EXISTING**, likely **EXTEND**
+Identity, team/squad assignment, role (Player/Captain/Coach/Volunteer/Parent/Physio), age group, membership status, availability default, attendance/participation %, training hours, payment status, a profile photo reference. New from Sprint 3 onward: sport-scoped primary/secondary positions (see 4.6) and a squad number. Almost certainly exists in some form already; the sport-scoping of positions is the likely extension.
+
+### 4.4 Teams / Squads — **EXISTING**, likely **EXTEND**
+A team's roster, plus (new) an explicit `sport` field on the team itself rather than inferred per-fixture. Whether a member can belong to more than one team/sport is worth confirming — our mock data assumes one, but a real multi-sport athlete shouldn't be forced into that.
+
+### 4.5 Sports — **NEW** as a first-class entity (the concepts underneath are probably not new)
+Not a hardcoded enum on our side — we need: identity (key, name, category: team vs. event), selection mode (formation / role / event — see 4.9–4.11), terminology (starting-lineup label, bench label, surface label), captaincy flags, and which club sections currently run each sport.
+
+### 4.6 Positions & Roles — **NEW** structure, **EXISTING** underlying data
+Two shapes we need supported without forcing one into the other: **formation positions** (a coordinate on the sport's surface, for football/basketball/rugby/hockey) and **roles** (no coordinate, just an ordered list — cricket's batting order, and any future role-based sport). Both need a `sport`, a key, a label, a short label.
+
+### 4.7 Fixtures — **EXISTING**, **EXTEND** (`sport` becomes load-bearing, not nullable)
+Home/away, date, time, competition, venue. Every fixture must resolve to exactly one sport, since selection mode and eligibility key off it.
+
+### 4.8 Availability — **EXPOSE**
+Per-fixture, per-member, tri-state (Available/Pending/Unavailable), distinct from a member's general default. No shape change from what team-sport apps typically already track.
+
+### 4.9 Team Selections / Team Sheets — **EXTEND**
+One record per fixture: formation, who's in which slot, who's on the bench, a `status: Draft | Published` plus `publishedAt`, and (new) an optional `captainId`/`viceCaptainId` gated by whether the sport supports each. Business rules the frontend currently enforces client-side and would want the backend to also enforce: a member occupies only one slot/bench spot at a time; switching formation moves an orphaned starter to the bench rather than dropping them; an "override unavailable" flag is recorded when a manager deliberately selects an unavailable player (worth an audit trail).
+
+### 4.10 Competitions — **NEW**
+The event-sport equivalent of a Fixture, but not the same shape: a Fixture is always one game between two named sides; a Competition (a meet, gala, regatta, race day) contests several Events at once. Needs name, date, time, venue, series, sport, and which Events it contests.
+
+### 4.11 Events / Disciplines — **NEW**, sport-scoped
+"100m," "Coxless Pair," "4x100m Medley Relay." Needs identity, category (Men/Women/Mixed/Open — see 4.15), a **type** (`individual` / `relay` / `crew` — this is the field everything downstream depends on), result shape (time/distance/points, and which direction is "better"), and — for individual events — an entry cap.
+
+### 4.12 Relay / Crew Selection — **EXTEND**, not a new entity
+The single most important architectural point for your team to see: a relay's running order and a boat's crew are **not** a new backend concept. They reuse exactly the same "ordered list of members, with or without coordinates" shape the Team Selection (4.9) already covers, scoped to `(competitionId, eventKey)` instead of `(fixtureId)`. The one real question this raises: **is your Team Selection equivalent keyed generically enough to point at either a fixture or a competition+event, or is it strictly fixture-keyed today?** If the latter, that's the one place our reuse assumption might force genuinely new schema on your side — worth confirming early.
+
+### 4.13 Individual Athlete Entries — **NEW**
+Which athlete(s) are entered into a specific event at a specific competition, capped by that event's entry limit — a flat list, not a slot or an order. Needs competition, event, entered member(s), and the same Draft/Published lifecycle as everything else.
+
+### 4.14 Results, Personal Bests, Rankings — **NEW** (Results), **derived, not stored** (PBs and rankings)
+A Result is a recorded performance: competition, event, athlete(s), and a value in the event's base unit (seconds for any timed event, metres for distance, raw points otherwise). Personal bests and per-event rankings are both just computed comparisons over Results, keyed by whichever direction is "better" for that event — no separate entity required, though a denormalised PB table is a reasonable backend-side optimisation if useful at scale.
+
+### 4.15 Athlete gender / event categories — **UNKNOWN**
+The frontend models a `category` field (Men/Women/Mixed/Open) but doesn't model member gender anywhere yet — every seeded event is currently "Open." A real deployment needs genuine gender-category eligibility (most athletics/swimming/rowing/cycling competitions run separate events), which needs a decision on how member gender is captured before this is more than a placeholder.
+
+### 4.16 Spaces posts / Stories — **EXPOSE**
+A feed of posts (tag, title, body, an AI-generated flag, a status, a like count). "Stories" aren't a separate type today — just a post with a particular tag. Worth deciding whether Stories deserve their own lifecycle server-side; also worth a structured foreign key back to whatever fixture/selection/match a post references, rather than the plain-text mention the frontend currently writes into the body.
+
+### 4.17 Permissions / roles — **UNKNOWN**, needed before any real write ships
+Not built anywhere in the app yet. We need: what roles exist today for admin-side users, and how access is actually scoped (club admin vs. team manager vs. coach) — ideally scoped by sport too, since a Cricket captain shouldn't be able to edit the Basketball team sheet. This maps onto the currently-illustrative "Role Dashboards" page, which needs to become real.
+
+---
+
+## 5. Authentication — what we need to integrate, specifically
+
+This is the single most important unknown blocking everything past read-only demo data, so it's worth its own section rather than folding into 4.1:
+
+1. **Mechanism.** Laravel Sanctum (cookie/session, or token-based for the native app), Passport (full OAuth2), or something custom?
+2. **Same flow as the native app, or a separate web flow?** How does the native app log in today — that's very likely what this web app should plug into rather than a parallel login system.
+3. **Domain relationship.** Will the web app call the API same-origin, or cross-origin (which changes CORS and cookie-handling requirements — see section 6.3)?
+4. **Token lifecycle.** Does a token/session refresh, or does it just expire and force re-login? What's the expected lifetime?
+5. **What a 401 should do.** Whatever the mechanism, the web app needs a defined behaviour for an expired/invalid session (redirect to login, clear local state, etc.) — happy to align this with whatever the native app already does.
+
+Once this is answered, Sprint 6's first real engineering phase (Phase B, section 8) is building the login screen and session handling against it — genuinely new work, and the one piece every other phase depends on.
+
+---
+
+## 6. Launching this web app — environment, deployment & operational requirements
+
+This section is specifically the "while we're launching" half of the ask — what needs to be true for this web app to go live against your real systems, distinct from the data-shape questions above.
+
+### 6.1 Hosting & build — already in place
+The web app is a static Vite/React SPA, currently deployed on Vercel (`vercel.json` has the SPA rewrite rule in place for client-side routing). We recently resolved a pnpm/Vercel build-config issue (a lockfile/config mismatch from a pnpm version upgrade) — the build is currently green: `pnpm install`, `pnpm typecheck`, and `pnpm build` all pass cleanly, including a frozen-lockfile install matching Vercel's CI exactly. No server-side rendering, no Node server needed for this app itself — it's a static build served in front of your API.
+
+### 6.2 Environment strategy — not yet built, needed for Sprint 6
+Today there are no `.env` files and no `import.meta.env` references anywhere in the codebase — literally nothing is configurable yet, because there's nothing to configure. Before real integration starts we need:
+- An **API base URL** the app targets, switchable between at least a staging and a production value (`VITE_API_BASE_URL` or equivalent), set per Vercel environment (Preview vs. Production).
+- A **staging/sandbox backend environment** to develop and test against, entirely separate from production data.
+- A **scoped, non-production API credential/user** for that staging environment — explicitly not production credentials.
+
+### 6.3 CORS & cookies
+Directly dependent on section 5's answers: if auth is cookie/session-based, the web app's domain needs to be covered by the backend's CORS and cookie (`SameSite`/domain) configuration; if token-based, this is simpler but the token storage/attachment strategy needs deciding (and should avoid `localStorage` for anything sensitive, given XSS exposure — worth a short conversation on this specifically).
+
+### 6.4 Domain / DNS
+Where does this web app live in production — a subdomain of the existing product domain, or its own? If it needs to feel like "one product" with the native app (shared cookies, shared perceived domain), that likely means a subdomain of the same root domain rather than a fully separate one; worth deciding early since it affects the CORS/cookie question above.
+
+### 6.5 Rate limits, CORS policy, API versioning
+Whatever conventions the existing backend already enforces, so the web app is built to respect them from day one rather than discovering them once it's already making requests at volume.
+
+### 6.6 Secrets management
+No secrets exist in this repo today (there's nothing to leak yet). Once real credentials are involved, they belong in Vercel's environment-variable store (scoped per environment), never committed — worth agreeing this convention explicitly before the first real API key is issued to this project.
+
+### 6.7 Observability — a genuine gap, worth deciding before go-live
+There is currently no error tracking, no request logging, and no monitoring of any kind on the frontend (nothing to monitor yet, since nothing talks to a network). Before this app is handling real writes against production data, it's worth deciding whether it should report into whatever error-tracking/monitoring the native app or backend already uses, rather than standing up something separate.
+
+---
+
+## 7. What we need from you — the handover checklist
+
+Everything below gates real data integration (section 8's Phase C onward), not Sprint 6's planning or auth-scaffolding work, which can start immediately:
+
+1. The authentication mechanism (section 5, in full).
+2. API documentation or direct read access to the Laravel routes/controllers — at minimum for auth, members, teams/squads, fixtures, availability. An OpenAPI/Swagger spec is ideal; the actual route files and Eloquent models are just as useful and probably faster to produce.
+3. The real database schema — migration files or a schema dump from RDS. This is usually the fastest, most unambiguous way to see the real data model, and directly answers point 4.
+4. Whether the backend already models anything like Sport / Competition / Event / Entry / Result, or is currently team-sport-only — the single biggest open question Sprint 5 raises (see section 4.10–4.14).
+5. A staging/sandbox environment and a scoped, non-production API credential (section 6.2).
+6. The role/permission model — what roles exist today and how access is scoped (section 4.17).
+7. How organisation/club/team hierarchy and multi-tenancy actually work (section 4.2).
+8. Rate limits, CORS policy, API versioning conventions (section 6.5).
+9. Domain/hosting intentions for this web app relative to the native app's existing domain (section 6.4).
+10. A named technical point of contact for integration questions as they come up.
+
+---
+
+## 8. Proposed Sprint 6 phases
+
+- **Phase A — Handover & environment.** Get the answers above; stand up `.env`/API-base-URL config. Zero risk to the current prototype.
+- **Phase B — Real authentication.** Login screen, session/token handling, route guards, logout, expired-session handling — against whatever section 5 reveals.
+- **Phase C — Read-side integration, domain by domain.** The "free" seam from section 3. Suggested order: Members/Teams → Fixtures/Availability → Team Selections/Team Sheets → the multi-sport config layer → Competitions/Events/Entries → Results/Rankings. Everything else (Analytics, Dashboard, Intelligence) is derived from these and follows naturally.
+- **Phase D — Write-side integration.** Same order as Phase C, converting each mutation to a real async request with loading/error/optimistic-update handling — with the concurrency question from section 3 resolved as a design decision before this phase starts, not discovered per-screen.
+- **Phase E — Permissions & multi-tenancy.** Wire the real role/organisation model into route guards and conditional UI; replace the illustrative "Role Dashboards" page with something real.
+- **Phase F — Reconciliation pass.** This app's sport/position/formation/event keys were designed against the product brief, not the real schema, because the real schema wasn't available yet. Once section 4's answers are in, this is a dedicated pass reconciling the two — a thin mapping layer per service, not a rewrite of the frontend's types.
+
+Phases C and D can run sport-by-sport rather than strictly domain-by-domain if that better fits how you want to sequence your own schema work — e.g. ship Members/Fixtures/Football real end-to-end first, then extend outward, rather than "every read" before "any write."
+
+---
+
+## 9. Open questions worth resolving together, early
+
+1. Is your Team Selection (or equivalent) keyed generically enough to cover a relay/crew selection scoped to a competition+event, not just a fixture (section 4.12)?
+2. How is member gender/category captured, if at all (section 4.15)?
+3. Do Competitions live alongside Fixtures in the same operational surfaces (calendar, notifications) in the real data model?
+4. Cookie/session vs. token auth, and same-domain vs. cross-origin (sections 5, 6.3, 6.4) — this one shapes several other decisions, worth settling first.
+5. Where should frontend errors/monitoring report to (section 6.7)?
